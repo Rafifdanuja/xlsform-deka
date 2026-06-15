@@ -27,9 +27,7 @@ COPY . .
 RUN mkdir -p /app/tmp_uploads
 
 # Railway injects PORT automatically
-ENV PORT=5000
-EXPOSE 5000
+EXPOSE ${PORT:-5000}
 
 # Start Gunicorn
-ENTRYPOINT ["gunicorn"]
-CMD ["backend.app:app", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "300", "--log-level", "info"]
+CMD ["sh", "-c", "gunicorn backend.app:app --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 300 --log-level info"]
