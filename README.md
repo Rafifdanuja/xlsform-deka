@@ -1,4 +1,4 @@
-# 📋 XLSForm Converter
+# XLSForm Converter
 
 Aplikasi web untuk mengkonversi dokumen kuesioner (PDF/DOCX) menjadi file **XLSForm (.xlsx)** yang siap di-upload ke **KoboToolbox** / ODK, menggunakan AI Claude via Sumopod API.
 
