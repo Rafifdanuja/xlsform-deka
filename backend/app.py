@@ -83,7 +83,6 @@ def _convert_doc_to_docx(save_path: Path) -> tuple[Path, bool, str]:
         )
         if result.returncode == 0 and result.stdout.strip():
             logger.info(f".doc dibaca via antiword: {len(result.stdout)} chars")
-            # Simpan teks ke file sementara .txt agar bisa dikembalikan ke caller
             txt_path = save_path.with_suffix(".txt")
             txt_path.write_text(result.stdout, encoding="utf-8")
             return txt_path, True, "antiword_text"
@@ -91,6 +90,67 @@ def _convert_doc_to_docx(save_path: Path) -> tuple[Path, bool, str]:
         pass
 
     return save_path, False, "failed"
+
+
+def _extract_raw_text_from_docx(doc_path: str) -> str:
+    """
+    Ekstrak teks dari .docx semirip mungkin dengan tampilan aslinya.
+    Paragraf kosong tetap dipertahankan sebagai baris kosong (whitespace asli dijaga).
+    Tabel diekstrak dengan format grid sederhana agar tetap terbaca.
+    """
+    import docx as _docx
+    doc = _docx.Document(doc_path)
+    lines = []
+
+    # Kumpulkan semua block (paragraf + tabel) dalam urutan dokumen
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    body = doc.element.body
+    for child in body:
+        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+
+        if tag == 'p':
+            # Paragraf — ambil teks apa adanya, termasuk yang kosong
+            para_text = child.text_content() if hasattr(child, 'text_content') else ''
+            # Gunakan python-docx Paragraph untuk ambil teks dengan benar
+            from docx.text.paragraph import Paragraph
+            para = Paragraph(child, doc)
+            lines.append(para.text)  # bisa berupa string kosong — itu disengaja
+
+        elif tag == 'tbl':
+            # Tabel — render sebagai grid teks sederhana
+            from docx.table import Table
+            tbl = Table(child, doc)
+            # Tentukan lebar kolom maksimal per kolom
+            col_widths = []
+            all_rows_data = []
+            for row in tbl.rows:
+                row_data = [cell.text.replace('\n', ' ') for cell in row.cells]
+                all_rows_data.append(row_data)
+                for ci, val in enumerate(row_data):
+                    if ci >= len(col_widths):
+                        col_widths.append(0)
+                    col_widths[ci] = max(col_widths[ci], len(val))
+
+            # Batas lebar kolom agar tidak terlalu lebar
+            col_widths = [min(w, 40) for w in col_widths]
+
+            sep = '+' + '+'.join('-' * (w + 2) for w in col_widths) + '+'
+            lines.append(sep)
+            for ri, row_data in enumerate(all_rows_data):
+                row_str = '|'
+                for ci, val in enumerate(row_data):
+                    w = col_widths[ci] if ci < len(col_widths) else 10
+                    cell_val = val[:w].ljust(w)
+                    row_str += f' {cell_val} |'
+                lines.append(row_str)
+                if ri == 0:  # Separator setelah header
+                    lines.append(sep)
+            lines.append(sep)
+            lines.append('')  # Baris kosong setelah tabel
+
+    return '\n'.join(lines)
 
 
 @app.route("/")
@@ -105,7 +165,7 @@ def health():
 
 @app.route("/api/preview-upload", methods=["POST"])
 def preview_upload():
-    """Ekstrak teks mentah dari file yang diupload untuk ditampilkan ke user."""
+    """Ekstrak teks mentah dari file yang diupload untuk ditampilkan ke user — semirip mungkin dengan isi aslinya."""
     if "file" not in request.files:
         return jsonify({"error": "Tidak ada file"}), 400
 
@@ -122,7 +182,6 @@ def preview_upload():
     uid       = str(uuid.uuid4())[:8]
     save_path = UPLOAD_FOLDER / f"{uid}_{filename}"
 
-    # File-file sementara yang perlu dibersihkan di akhir
     temp_files: list[Path] = [save_path]
 
     try:
@@ -130,11 +189,11 @@ def preview_upload():
         ext = filename.rsplit(".", 1)[1].lower()
 
         if ext == "pdf":
+            # PDF: gunakan parser yang ada — hasilnya sudah cukup raw
             from .file_parser import parse_uploaded_file
             text = parse_uploaded_file(str(save_path))
 
         elif ext == "doc":
-            # .doc tidak bisa dibaca langsung oleh python-docx — perlu konversi dulu
             converted_path, ok, method = _convert_doc_to_docx(save_path)
 
             if not ok:
@@ -146,46 +205,23 @@ def preview_upload():
                     )
                 }), 400
 
-            # Catat file konversi agar ikut dihapus
             if converted_path != save_path:
                 temp_files.append(converted_path)
 
             if method == "antiword_text":
-                # converted_path adalah .txt
+                # antiword sudah menghasilkan teks mentah yang cukup baik
                 text = converted_path.read_text(encoding="utf-8")
             else:
-                # converted_path adalah .docx — baca via python-docx
-                import docx as _docx
-                doc = _docx.Document(str(converted_path))
-                lines = []
-                for para in doc.paragraphs:
-                    if para.text.strip():
-                        lines.append(para.text.strip())
-                for tbl in doc.tables:
-                    for row in tbl.rows:
-                        cells = [c.text.strip() for c in row.cells if c.text.strip()]
-                        if cells:
-                            lines.append(" | ".join(cells))
-                text = "\n".join(lines)
+                # LibreOffice → .docx → ekstrak raw
+                text = _extract_raw_text_from_docx(str(converted_path))
 
         elif ext == "docx":
-            import docx as _docx
-            doc  = _docx.Document(str(save_path))
-            lines = []
-            for para in doc.paragraphs:
-                if para.text.strip():
-                    lines.append(para.text.strip())
-            for tbl in doc.tables:
-                for row in tbl.rows:
-                    cells = [c.text.strip() for c in row.cells if c.text.strip()]
-                    if cells:
-                        lines.append(" | ".join(cells))
-            text = "\n".join(lines)
+            # Ekstrak teks semirip mungkin dengan dokumen asli
+            text = _extract_raw_text_from_docx(str(save_path))
 
         else:
             return jsonify({"error": "Format tidak didukung"}), 400
 
-        # Batasi ke 8000 karakter untuk preview
         preview   = text[:8000]
         truncated = len(text) > 8000
         return jsonify({
@@ -311,7 +347,6 @@ def convert():
                     )
                 }), 400
 
-            # LibreOffice berhasil → lanjut dengan .docx
             save_path = converted_path
             ext       = "docx"
 
