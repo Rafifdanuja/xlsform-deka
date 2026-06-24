@@ -215,21 +215,22 @@
             File siap di-upload ke KoboToolbox. Pastikan validasi XLSForm sebelum deploy.
           </p>
         </div>
-        <div class="flex flex-col gap-sm w-full md:w-auto">
-          <button id="previewXlsformBtn"
-                  class="w-full md:w-auto bg-surface-container text-on-surface px-lg h-10 rounded-lg font-label-md text-label-md flex items-center justify-center gap-sm hover:bg-surface-container-high transition-all border border-outline-variant">
-            <span class="material-symbols-outlined text-sm">table_view</span>
-            Preview XLSForm
-          </button>
+        <!-- PERUBAHAN 1: Blok tombol baru -->
+        <div class="flex flex-col gap-sm w-full md:w-auto min-w-[176px]">
           <button id="downloadBtn"
-                  class="w-full md:w-auto bg-secondary text-on-secondary px-lg h-14 rounded-lg font-label-md text-label-md flex items-center justify-center gap-sm hover:opacity-90 active:scale-95 transition-all shadow-sm">
-            <span class="material-symbols-outlined">download</span>
+                  class="w-full bg-primary text-on-primary px-lg h-11 rounded-lg font-label-md text-label-md flex items-center justify-center gap-sm hover:opacity-90 active:scale-95 transition-all shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">download</span>
             Download XLSForm
           </button>
+          <button id="previewXlsformBtn"
+                  class="w-full bg-surface-container text-on-surface px-lg h-9 rounded-lg font-label-md text-label-md flex items-center justify-center gap-sm hover:bg-surface-container-high transition-all border border-outline-variant text-sm">
+            <span class="material-symbols-outlined text-[16px]">table_view</span>
+            Preview XLSForm
+          </button>
           <button id="convertAnotherBtn"
-                  class="w-full md:w-auto bg-surface-container text-on-surface px-lg h-10 rounded-lg font-label-md text-label-md flex items-center justify-center gap-sm hover:bg-surface-container-high transition-all">
-            <span class="material-symbols-outlined text-sm">refresh</span>
-            Konversi File Lain
+                  class="w-full bg-surface-container text-on-surface px-lg h-9 rounded-lg font-label-md text-label-md flex items-center justify-center gap-sm hover:bg-surface-container-high transition-all text-sm">
+            <span class="material-symbols-outlined text-[16px]">refresh</span>
+            Konversi file lain
           </button>
         </div>
       </div>
@@ -571,6 +572,29 @@
       : 'px-lg py-sm text-label-md font-label-md text-on-surface-variant border-b-2 border-transparent hover:text-on-surface transition-all';
   }
 
+  // ── PERUBAHAN 3: Fungsi highlight ──────────────────────────────────────────
+  function highlightRowByName(qid) {
+    document.querySelectorAll('#surveyTbody tr').forEach(tr => {
+      const nameCell = tr.querySelector('td:nth-child(2)');
+      if (nameCell && nameCell.textContent.trim() === qid) {
+        tr.style.outline = '2px solid #1a56db';
+        tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => tr.style.outline = '', 3000);
+      }
+    });
+  }
+
+  function highlightRowByListName(listName) {
+    document.querySelectorAll('#choicesTbody tr').forEach(tr => {
+      const cell = tr.querySelector('td');
+      if (cell && cell.textContent.trim() === listName) {
+        tr.style.outline = '2px solid #2e7d32';
+        tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => tr.style.outline = '', 3000);
+      }
+    });
+  }
+
   // ── File selection ──────────────────────────────────────────────────────────
   chooseFileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -743,6 +767,7 @@
     errorState.classList.remove('hidden');
   }
 
+  // ── PERUBAHAN 2: renderConversionNotes dengan tombol "Lihat" ──────────────
   function renderConversionNotes(notes) {
     const container    = document.getElementById('conversionNotes');
     const fbSection    = document.getElementById('fallbackSection');
@@ -759,7 +784,24 @@
     if (fallbacks.length > 0) {
       fallbacks.forEach(q => {
         const li = document.createElement('li');
-        li.innerHTML = `<span class="font-medium">${q.id}</span> — ${q.label || '(tanpa label)'} <span class="text-on-surface-variant/60">[route: ${q.route_type} → ${q.resolved_type}]</span>`;
+        li.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--color-surface-container,#f8f8f8);border-radius:8px;border:1px solid rgba(0,0,0,.06);margin-bottom:4px';
+        
+        const info = document.createElement('div');
+        info.innerHTML = `<span class="font-medium text-sm">${q.id}</span>
+          <span class="text-on-surface-variant text-xs block">${q.label || '(tanpa label)'}</span>
+          <span class="text-xs" style="color:#e65100">[${q.route_type} → ${q.resolved_type}]</span>`;
+        
+        const btn = document.createElement('button');
+        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">arrow_forward</span> Lihat`;
+        btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(21,101,192,.25);border-radius:5px;padding:2px 8px;color:#1565c0;background:none;cursor:pointer;white-space:nowrap';
+        btn.addEventListener('click', () => {
+          previewXlsformPanel.classList.remove('hidden');
+          previewXlsformPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          highlightRowByName(q.id);
+        });
+        
+        li.appendChild(info);
+        li.appendChild(btn);
         fbList.appendChild(li);
       });
       fbSection.classList.remove('hidden');
@@ -770,7 +812,24 @@
     if (placeholders.length > 0) {
       placeholders.forEach(p => {
         const li = document.createElement('li');
-        li.innerHTML = `List <code class="bg-surface-container px-1 rounded">${p.list_name}</code> — ${p.label || p.question_type}`;
+        li.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--color-surface-container,#f8f8f8);border-radius:8px;border:1px solid rgba(0,0,0,.06);margin-bottom:4px';
+        
+        const info = document.createElement('div');
+        info.innerHTML = `<code style="font-size:12px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px">${p.list_name}</code>
+          <span class="text-on-surface-variant text-xs block mt-1">${p.label || p.question_type}</span>`;
+        
+        const btn = document.createElement('button');
+        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">arrow_forward</span> Lihat`;
+        btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(46,125,50,.25);border-radius:5px;padding:2px 8px;color:#2e7d32;background:none;cursor:pointer;white-space:nowrap';
+        btn.addEventListener('click', () => {
+          previewXlsformPanel.classList.remove('hidden');
+          switchTab('choices');
+          previewXlsformPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          highlightRowByListName(p.list_name);
+        });
+        
+        li.appendChild(info);
+        li.appendChild(btn);
         phList.appendChild(li);
       });
       phSection.classList.remove('hidden');
