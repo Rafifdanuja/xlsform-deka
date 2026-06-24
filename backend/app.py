@@ -92,65 +92,90 @@ def _convert_doc_to_docx(save_path: Path) -> tuple[Path, bool, str]:
     return save_path, False, "failed"
 
 
-def _extract_raw_text_from_docx(doc_path: str) -> str:
+def _docx_to_html(doc_path: str) -> str:
     """
-    Ekstrak teks dari .docx semirip mungkin dengan tampilan aslinya.
-    Paragraf kosong tetap dipertahankan sebagai baris kosong (whitespace asli dijaga).
-    Tabel diekstrak dengan format grid sederhana agar tetap terbaca.
+    Konversi .docx ke HTML agar browser bisa render tabel, bold, italic, dll
+    semirip mungkin dengan tampilan Word — tanpa ASCII art.
     """
     import docx as _docx
-    doc = _docx.Document(doc_path)
-    lines = []
+    from docx.text.paragraph import Paragraph
+    from docx.table import Table
+    import html
 
-    # Kumpulkan semua block (paragraf + tabel) dalam urutan dokumen
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
+    doc = _docx.Document(doc_path)
+    parts = []
+
+    def render_paragraph(para: Paragraph) -> str:
+        """Render satu paragraf ke HTML, jaga bold/italic/underline per-run."""
+        if not para.text.strip():
+            return '<p style="margin:0;line-height:1.4">&nbsp;</p>'
+
+        inner = ''
+        for run in para.runs:
+            text = html.escape(run.text)
+            if not text:
+                continue
+            if run.bold:
+                text = f'<strong>{text}</strong>'
+            if run.italic:
+                text = f'<em>{text}</em>'
+            if run.underline:
+                text = f'<u>{text}</u>'
+            inner += text
+
+        # Style heading berdasarkan style name Word
+        style_name = (para.style.name or '').lower()
+        if 'heading 1' in style_name:
+            return f'<h2 style="font-size:15px;font-weight:700;margin:8px 0 4px">{inner}</h2>'
+        elif 'heading' in style_name:
+            return f'<h3 style="font-size:13px;font-weight:700;margin:6px 0 3px">{inner}</h3>'
+        else:
+            return f'<p style="margin:0 0 2px;line-height:1.5">{inner or "&nbsp;"}</p>'
+
+    def render_cell(cell) -> str:
+        """Render isi cell — bisa multi-paragraf."""
+        cell_html = ''
+        for para in cell.paragraphs:
+            cell_html += render_paragraph(para)
+        return cell_html
+
+    def render_table(tbl: Table) -> str:
+        rows_html = ''
+        for ri, row in enumerate(tbl.rows):
+            # Deduplikasi sel merged (python-docx duplikasi sel merged)
+            seen_ids = set()
+            cells_html = ''
+            for cell in row.cells:
+                cid = id(cell._tc)
+                if cid in seen_ids:
+                    continue
+                seen_ids.add(cid)
+                bg = '#f0f4ff' if ri == 0 else 'transparent'
+                fw = '600' if ri == 0 else 'normal'
+                cells_html += (
+                    f'<td style="border:1px solid #d1d5db;padding:5px 8px;'
+                    f'vertical-align:top;background:{bg};font-weight:{fw};'
+                    f'font-size:11px;min-width:80px">'
+                    f'{render_cell(cell)}</td>'
+                )
+            rows_html += f'<tr>{cells_html}</tr>'
+        return (
+            '<div style="overflow-x:auto;margin:8px 0">'
+            '<table style="border-collapse:collapse;width:100%;font-size:11px">'
+            f'{rows_html}</table></div>'
+        )
 
     body = doc.element.body
     for child in body:
         tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-
         if tag == 'p':
-            # Paragraf — ambil teks apa adanya, termasuk yang kosong
-            para_text = child.text_content() if hasattr(child, 'text_content') else ''
-            # Gunakan python-docx Paragraph untuk ambil teks dengan benar
-            from docx.text.paragraph import Paragraph
             para = Paragraph(child, doc)
-            lines.append(para.text)  # bisa berupa string kosong — itu disengaja
-
+            parts.append(render_paragraph(para))
         elif tag == 'tbl':
-            # Tabel — render sebagai grid teks sederhana
-            from docx.table import Table
             tbl = Table(child, doc)
-            # Tentukan lebar kolom maksimal per kolom
-            col_widths = []
-            all_rows_data = []
-            for row in tbl.rows:
-                row_data = [cell.text.replace('\n', ' ') for cell in row.cells]
-                all_rows_data.append(row_data)
-                for ci, val in enumerate(row_data):
-                    if ci >= len(col_widths):
-                        col_widths.append(0)
-                    col_widths[ci] = max(col_widths[ci], len(val))
+            parts.append(render_table(tbl))
 
-            # Batas lebar kolom agar tidak terlalu lebar
-            col_widths = [min(w, 40) for w in col_widths]
-
-            sep = '+' + '+'.join('-' * (w + 2) for w in col_widths) + '+'
-            lines.append(sep)
-            for ri, row_data in enumerate(all_rows_data):
-                row_str = '|'
-                for ci, val in enumerate(row_data):
-                    w = col_widths[ci] if ci < len(col_widths) else 10
-                    cell_val = val[:w].ljust(w)
-                    row_str += f' {cell_val} |'
-                lines.append(row_str)
-                if ri == 0:  # Separator setelah header
-                    lines.append(sep)
-            lines.append(sep)
-            lines.append('')  # Baris kosong setelah tabel
-
-    return '\n'.join(lines)
+    return '\n'.join(parts)
 
 
 @app.route("/")
@@ -165,7 +190,10 @@ def health():
 
 @app.route("/api/preview-upload", methods=["POST"])
 def preview_upload():
-    """Ekstrak teks mentah dari file yang diupload untuk ditampilkan ke user — semirip mungkin dengan isi aslinya."""
+    """
+    Render dokumen sebagai HTML agar browser bisa tampilkan tabel, bold, dll
+    persis seperti membuka file di Word — tanpa ekstraksi/distorsi teks.
+    """
     if "file" not in request.files:
         return jsonify({"error": "Tidak ada file"}), 400
 
@@ -181,7 +209,6 @@ def preview_upload():
     filename  = secure_filename(file.filename)
     uid       = str(uuid.uuid4())[:8]
     save_path = UPLOAD_FOLDER / f"{uid}_{filename}"
-
     temp_files: list[Path] = [save_path]
 
     try:
@@ -189,46 +216,38 @@ def preview_upload():
         ext = filename.rsplit(".", 1)[1].lower()
 
         if ext == "pdf":
-            # PDF: gunakan parser yang ada — hasilnya sudah cukup raw
-            from .file_parser import parse_uploaded_file
-            text = parse_uploaded_file(str(save_path))
+            # PDF: embed langsung sebagai base64 di dalam <iframe>
+            import base64
+            pdf_b64 = base64.b64encode(save_path.read_bytes()).decode()
+            html_content = (
+                f'<iframe src="data:application/pdf;base64,{pdf_b64}" '
+                f'style="width:100%;height:600px;border:none"></iframe>'
+            )
 
         elif ext == "doc":
             converted_path, ok, method = _convert_doc_to_docx(save_path)
-
-            if not ok:
-                return jsonify({
-                    "error": (
-                        "File .doc (format Word lama) tidak dapat dibaca langsung. "
-                        "Pastikan LibreOffice terinstall di server, atau simpan ulang "
-                        "file sebagai .docx lalu upload kembali."
-                    )
-                }), 400
-
             if converted_path != save_path:
                 temp_files.append(converted_path)
 
-            if method == "antiword_text":
-                # antiword sudah menghasilkan teks mentah yang cukup baik
-                text = converted_path.read_text(encoding="utf-8")
-            else:
-                # LibreOffice → .docx → ekstrak raw
-                text = _extract_raw_text_from_docx(str(converted_path))
+            if not ok or method == "antiword_text":
+                return jsonify({
+                    "error": (
+                        "File .doc tidak bisa dipratinjau karena LibreOffice tidak tersedia "
+                        "di server. Simpan ulang file sebagai .docx lalu upload kembali."
+                    )
+                }), 400
+
+            html_content = _docx_to_html(str(converted_path))
 
         elif ext == "docx":
-            # Ekstrak teks semirip mungkin dengan dokumen asli
-            text = _extract_raw_text_from_docx(str(save_path))
+            html_content = _docx_to_html(str(save_path))
 
         else:
             return jsonify({"error": "Format tidak didukung"}), 400
 
-        preview   = text[:8000]
-        truncated = len(text) > 8000
         return jsonify({
-            "preview":     preview,
-            "truncated":   truncated,
-            "total_chars": len(text),
-            "filename":    filename,
+            "html":     html_content,
+            "filename": filename,
         })
 
     except Exception as e:
