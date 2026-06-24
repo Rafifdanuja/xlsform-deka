@@ -32,6 +32,67 @@
     background-color: #e6eeff;
   }
   body { min-height: 100dvh; }
+
+  /* ── Preview upload: monospace raw text ── */
+  #previewUploadText {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;        /* jaga spasi & indent asli */
+    overflow-x: auto;        /* scroll horizontal kalau ada baris panjang */
+    overflow-y: auto;
+    max-height: 460px;
+    tab-size: 4;
+  }
+
+  /* ── Preview XLSForm: tabel yang bisa dibaca ── */
+  .xlsform-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    min-width: 700px;
+  }
+  .xlsform-table thead th {
+    padding: 7px 12px;
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 11px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .xlsform-table tbody td {
+    padding: 5px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+    /* Biarkan teks wrap — user bisa baca isi penuh */
+    white-space: normal;
+    word-break: break-word;
+    max-width: 280px;
+  }
+  /* Kolom sempit yang tidak perlu wrap */
+  .xlsform-table tbody td.col-type,
+  .xlsform-table tbody td.col-name,
+  .xlsform-table tbody td.col-required,
+  .xlsform-table tbody td.col-list-name,
+  .xlsform-table tbody td.col-name-choice {
+    white-space: nowrap;
+    max-width: none;
+  }
+  /* Tooltip untuk cell yang mungkin kepotong */
+  .xlsform-table tbody td[title] {
+    cursor: help;
+  }
+  /* Warna zebra baris */
+  .row-begin   { background: #dbeafe !important; }
+  .row-end     { background: #ede9fe !important; }
+  .row-note    { background: #fef9c3 !important; }
+  .row-select1-a { background: #f0fdf4; }
+  .row-select1-b { background: #dcfce7; }
+  .row-selectm-a { background: #fef3c7; }
+  .row-selectm-b { background: #fde68a; }
+  .row-odd     { background: #f9fafb; }
+  .row-even    { background: #ffffff; }
 </style>
 </head>
 
@@ -117,14 +178,15 @@
         <p class="mt-xs">Membaca dokumen...</p>
       </div>
       <div id="previewUploadContent" class="hidden">
-        <div id="previewUploadTruncatedNote" class="hidden px-lg pt-md">
+        <div id="previewUploadTruncatedNote" class="hidden px-lg pt-md pb-xs">
           <p class="text-label-sm font-label-sm text-on-surface-variant bg-surface-container px-sm py-xs rounded-lg inline-block">
             ⚠️ Menampilkan 8.000 karakter pertama dari total <span id="previewUploadTotalChars"></span> karakter
           </p>
         </div>
-        <pre id="previewUploadText"
-             class="px-lg py-md text-body-sm font-body-sm text-on-surface whitespace-pre-wrap break-words overflow-y-auto"
-             style="max-height: 420px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6;"></pre>
+        <!-- overflow-x: auto ada di CSS class #previewUploadText -->
+        <div class="px-lg py-md overflow-x-auto bg-surface-container-low/40">
+          <pre id="previewUploadText"></pre>
+        </div>
       </div>
       <div id="previewUploadError" class="hidden p-lg text-body-sm text-error"></div>
     </div>
@@ -144,7 +206,6 @@
       <p id="progressStep" class="text-body-sm font-body-sm text-on-surface-variant mt-sm text-center">
         Membaca dokumen...
       </p>
-      <!-- Peringatan proses lama -->
       <div class="mt-md p-sm rounded-lg bg-surface-container-low border border-outline-variant">
         <p class="text-label-sm font-label-sm text-on-surface-variant text-center">
           ⏳ <strong>Proses AI bisa memakan waktu 5–30 menit</strong> tergantung panjang kuesioner.<br/>
@@ -202,22 +263,18 @@
         </div>
       </div>
 
-      <!-- Catatan Konversi — tampil jika ada fallback atau placeholder -->
+      <!-- Catatan Konversi -->
       <div id="conversionNotes" class="hidden mt-lg pt-lg border-t border-secondary-container/30">
         <h4 class="text-label-lg font-label-lg text-on-surface mb-sm flex items-center gap-xs">
           <span class="material-symbols-outlined text-[18px]" style="color:#E65100">info</span>
           Catatan Konversi
         </h4>
-
-        <!-- Fallback Questions -->
         <div id="fallbackSection" class="hidden mb-md">
           <p class="text-body-sm font-body-sm text-on-surface-variant mb-xs">
             ⚠️ <strong>Pertanyaan dengan tipe fallback</strong> — route_type tidak dikenali, tipe ditentukan otomatis:
           </p>
           <ul id="fallbackList" class="text-body-sm font-body-sm text-on-surface-variant space-y-1 list-disc pl-4"></ul>
         </div>
-
-        <!-- Placeholder Choices -->
         <div id="placeholderSection" class="hidden">
           <p class="text-body-sm font-body-sm text-on-surface-variant mb-xs">
             📋 <strong>Opsi jawaban perlu diisi manual</strong> — daftar pilihan di sheet <em>choices</em> masih berisi placeholder:
@@ -262,17 +319,17 @@
         </div>
 
         <!-- Survey tab -->
-        <div id="paneeSurvey" class="overflow-auto" style="max-height: 460px;">
-          <table class="w-full text-left border-collapse" style="font-size: 11px; min-width: 700px;">
-            <thead id="surveyThead" class="sticky top-0 bg-primary text-on-primary"></thead>
+        <div id="paneeSurvey" class="overflow-auto" style="max-height: 480px;">
+          <table class="xlsform-table">
+            <thead id="surveyThead" class="bg-primary text-on-primary"></thead>
             <tbody id="surveyTbody"></tbody>
           </table>
         </div>
 
         <!-- Choices tab -->
-        <div id="paneeChoices" class="hidden overflow-auto" style="max-height: 460px;">
-          <table class="w-full text-left border-collapse" style="font-size: 11px; min-width: 400px;">
-            <thead id="choicesThead" class="sticky top-0 bg-secondary text-on-secondary"></thead>
+        <div id="paneeChoices" class="hidden overflow-auto" style="max-height: 480px;">
+          <table class="xlsform-table">
+            <thead id="choicesThead" class="bg-secondary text-on-secondary"></thead>
             <tbody id="choicesTbody"></tbody>
           </table>
         </div>
@@ -364,36 +421,36 @@
 </footer>
 
 <script>
-  const dropzone       = document.getElementById('dropzone');
-  const fileInput      = document.getElementById('fileInput');
-  const chooseFileBtn  = document.getElementById('chooseFileBtn');
-  const fileNameDisplay = document.getElementById('fileNameDisplay');
-  const convertSection = document.getElementById('convertSection');
-  const convertBtn     = document.getElementById('convertBtn');
-  const processingState = document.getElementById('processingState');
-  const progressBar    = document.getElementById('progressBar');
-  const progressLabel  = document.getElementById('progressLabel');
-  const progressStep   = document.getElementById('progressStep');
-  const errorState     = document.getElementById('errorState');
-  const errorMessage   = document.getElementById('errorMessage');
-  const retryBtn       = document.getElementById('retryBtn');
-  const resultState    = document.getElementById('resultState');
-  const resultFileName = document.getElementById('resultFileName');
-  const downloadBtn    = document.getElementById('downloadBtn');
+  const dropzone          = document.getElementById('dropzone');
+  const fileInput         = document.getElementById('fileInput');
+  const chooseFileBtn     = document.getElementById('chooseFileBtn');
+  const fileNameDisplay   = document.getElementById('fileNameDisplay');
+  const convertSection    = document.getElementById('convertSection');
+  const convertBtn        = document.getElementById('convertBtn');
+  const processingState   = document.getElementById('processingState');
+  const progressBar       = document.getElementById('progressBar');
+  const progressLabel     = document.getElementById('progressLabel');
+  const progressStep      = document.getElementById('progressStep');
+  const errorState        = document.getElementById('errorState');
+  const errorMessage      = document.getElementById('errorMessage');
+  const retryBtn          = document.getElementById('retryBtn');
+  const resultState       = document.getElementById('resultState');
+  const resultFileName    = document.getElementById('resultFileName');
+  const downloadBtn       = document.getElementById('downloadBtn');
   const convertAnotherBtn = document.getElementById('convertAnotherBtn');
 
   // Preview elements
-  const previewUploadBtn     = document.getElementById('previewUploadBtn');
-  const previewUploadPanel   = document.getElementById('previewUploadPanel');
-  const closePreviewUploadBtn = document.getElementById('closePreviewUploadBtn');
-  const previewXlsformBtn    = document.getElementById('previewXlsformBtn');
-  const previewXlsformPanel  = document.getElementById('previewXlsformPanel');
+  const previewUploadBtn       = document.getElementById('previewUploadBtn');
+  const previewUploadPanel     = document.getElementById('previewUploadPanel');
+  const closePreviewUploadBtn  = document.getElementById('closePreviewUploadBtn');
+  const previewXlsformBtn      = document.getElementById('previewXlsformBtn');
+  const previewXlsformPanel    = document.getElementById('previewXlsformPanel');
   const closePreviewXlsformBtn = document.getElementById('closePreviewXlsformBtn');
 
-  let selectedFile  = null;
-  let downloadBlob  = null;
-  let downloadName  = '';
-  let currentDownloadUid = null;
+  let selectedFile       = null;
+  let downloadBlob       = null;
+  let downloadName       = '';
+  let currentDownloadUid = null;   // ← di-set saat konversi selesai
 
   // ── Preview Upload ──────────────────────────────────────────────────────────
   previewUploadBtn.addEventListener('click', async () => {
@@ -405,7 +462,7 @@
       return;
     }
 
-    // Reset state
+    // Reset state panel
     document.getElementById('previewUploadLoading').classList.remove('hidden');
     document.getElementById('previewUploadContent').classList.add('hidden');
     document.getElementById('previewUploadError').classList.add('hidden');
@@ -422,6 +479,8 @@
       if (!resp.ok) throw new Error(data.error || 'Gagal membaca file');
 
       document.getElementById('previewUploadFilename').textContent = `— ${data.filename}`;
+
+      // Tampilkan teks apa adanya — JANGAN di-escape manual, textContent sudah aman
       document.getElementById('previewUploadText').textContent = data.preview;
 
       const truncNote = document.getElementById('previewUploadTruncatedNote');
@@ -483,8 +542,12 @@
     previewXlsformPanel.classList.add('hidden');
   });
 
+  // ── Render tabel XLSForm ────────────────────────────────────────────────────
+  // Kolom-kolom pendek yang tidak perlu word-wrap
+  const NARROW_COLS = new Set(['type', 'name', 'required', 'read_only', 'appearance',
+                                'list_name', 'value']);
+
   function renderXlsformPreview(data) {
-    // Survey tab
     buildTable(
       document.getElementById('surveyThead'),
       document.getElementById('surveyTbody'),
@@ -494,7 +557,6 @@
     );
     document.getElementById('surveyRowCount').textContent = `(${data.survey.rows.length} baris)`;
 
-    // Choices tab
     buildTable(
       document.getElementById('choicesThead'),
       document.getElementById('choicesTbody'),
@@ -509,43 +571,64 @@
     thead.innerHTML = '';
     tbody.innerHTML = '';
 
-    const tr = document.createElement('tr');
+    // Header row
+    const trHead = document.createElement('tr');
     headers.forEach(h => {
       const th = document.createElement('th');
       th.textContent = h;
-      th.style.cssText = 'padding: 6px 10px; white-space: nowrap; font-weight: 600; font-size: 11px;';
-      tr.appendChild(th);
+      trHead.appendChild(th);
     });
-    thead.appendChild(tr);
+    thead.appendChild(trHead);
 
-    // Warna zebra per list_name untuk choices, atau per tipe untuk survey
-    let prevGroup = null;
+    // Body rows
     let toggle = false;
+    let prevGroup = null;
+
     rows.forEach(row => {
       const tr = document.createElement('tr');
       const groupKey = sheetType === 'choices' ? row['list_name'] : row['type'];
       if (groupKey !== prevGroup) { toggle = !toggle; prevGroup = groupKey; }
 
-      // Warna baris berdasarkan tipe
-      let bg = toggle ? '#f9fafb' : '#ffffff';
+      // Pilih kelas warna baris berdasarkan tipe
       if (sheetType === 'survey') {
         const t = (row['type'] || '').toLowerCase();
-        if (t.startsWith('begin')) bg = '#dbeafe';
-        else if (t.startsWith('end')) bg = '#ede9fe';
-        else if (t === 'note') bg = '#fef9c3';
-        else if (t.startsWith('select_one')) bg = toggle ? '#f0fdf4' : '#dcfce7';
-        else if (t.startsWith('select_multiple')) bg = toggle ? '#fef3c7' : '#fde68a';
+        if      (t.startsWith('begin'))            tr.className = 'row-begin';
+        else if (t.startsWith('end'))              tr.className = 'row-end';
+        else if (t === 'note')                     tr.className = 'row-note';
+        else if (t.startsWith('select_multiple'))  tr.className = toggle ? 'row-selectm-a' : 'row-selectm-b';
+        else if (t.startsWith('select_one'))       tr.className = toggle ? 'row-select1-a' : 'row-select1-b';
+        else                                       tr.className = toggle ? 'row-odd' : 'row-even';
+      } else {
+        tr.className = toggle ? 'row-odd' : 'row-even';
       }
-      tr.style.background = bg;
 
       headers.forEach(h => {
         const td = document.createElement('td');
-        td.textContent = row[h] || '';
-        td.style.cssText = 'padding: 5px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+        const val = row[h] || '';
+        td.textContent = val;
+
+        // Kolom pendek: nowrap. Kolom panjang: wrap + tooltip jika > 60 karakter
+        if (NARROW_COLS.has(h.toLowerCase())) {
+          td.className = `col-${h.toLowerCase().replace(/_/g, '-')}`;
+        } else if (val.length > 60) {
+          td.title = val;   // tooltip teks penuh
+        }
+
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
     });
+
+    // Tampilkan pesan kalau kosong
+    if (rows.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = headers.length;
+      td.textContent = '— tidak ada data —';
+      td.style.cssText = 'text-align:center; padding: 16px; color: #94a3b8;';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
   }
 
   function switchTab(tab) {
@@ -560,7 +643,7 @@
       : 'px-lg py-sm text-label-md font-label-md text-on-surface-variant border-b-2 border-transparent hover:text-on-surface transition-all';
   }
 
-  // --- File selection ---
+  // ── File selection ──────────────────────────────────────────────────────────
   chooseFileBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     fileInput.click();
@@ -575,7 +658,7 @@
   ['dragover', 'dragleave', 'drop'].forEach(evt => {
     dropzone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
   });
-  dropzone.addEventListener('dragover', () => dropzone.classList.add('drag-over'));
+  dropzone.addEventListener('dragover',  () => dropzone.classList.add('drag-over'));
   dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
   dropzone.addEventListener('drop', (e) => {
     dropzone.classList.remove('drag-over');
@@ -584,9 +667,6 @@
   });
 
   function handleFileSelected(file) {
-    const allowed = ['application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     const ext = file.name.split('.').pop().toLowerCase();
     if (!['pdf', 'doc', 'docx'].includes(ext)) {
       showError('Format file tidak didukung. Gunakan PDF, DOC, atau DOCX.');
@@ -599,12 +679,11 @@
     selectedFile = file;
     fileNameDisplay.textContent = `File dipilih: ${file.name}`;
     fileNameDisplay.classList.add('text-primary', 'font-medium');
-    convertSection.classList.remove('hidden');
     hideAll();
     convertSection.classList.remove('hidden');
   }
 
-  // --- Convert ---
+  // ── Convert ─────────────────────────────────────────────────────────────────
   convertBtn.addEventListener('click', startConversion);
 
   async function startConversion() {
@@ -617,56 +696,43 @@
     const formData = new FormData();
     formData.append('file', selectedFile);
 
-    // Timer: hitung waktu berjalan dan tampilkan di progress
     const startTime = Date.now();
     let elapsedInterval = setInterval(() => {
       const secs = Math.floor((Date.now() - startTime) / 1000);
       const mins = Math.floor(secs / 60);
-      const s = secs % 60;
+      const s    = secs % 60;
       const timeStr = mins > 0
-        ? `${mins}m ${s.toString().padStart(2,'0')}s`
+        ? `${mins}m ${s.toString().padStart(2, '0')}s`
         : `${s}s`;
-
-      // Update label waktu di pojok kanan
-      if (progressLabel) {
-        const currentLabel = progressLabel.dataset.base || progressLabel.textContent;
-        progressLabel.dataset.base = currentLabel.replace(/ \| .+$/, '');
-        progressLabel.textContent = (progressLabel.dataset.base || currentLabel) + ` | ${timeStr}`;
-      }
+      const base = progressLabel.dataset.base || progressLabel.textContent.replace(/ \| .+$/, '');
+      progressLabel.dataset.base = base;
+      progressLabel.textContent  = base + ` | ${timeStr}`;
     }, 1000);
 
-    // Progress steps — dirancang untuk proses yang bisa sampai 30+ menit
-    // Maju perlahan dari 10% → 88% selama AI masih bekerja
     const aiSteps = [
-      { pct: 10, base: 'Membaca dokumen...', step: 'Mengekstrak teks dari file...', delay: 2000 },
-      { pct: 20, base: 'Mengirim ke AI...', step: 'AI Claude mulai menganalisis kuesioner...', delay: 6000 },
-      { pct: 30, base: 'AI memproses...', step: 'Mengidentifikasi struktur pertanyaan & logika skip...', delay: 30000 },
-      { pct: 40, base: 'AI memproses...', step: 'Membuat pertanyaan survey (bisa 5–20 menit untuk dokumen besar)...', delay: 60000 },
-      { pct: 50, base: 'AI memproses...', step: 'Menyusun daftar pilihan jawaban (choices)...', delay: 120000 },
-      { pct: 60, base: 'AI memproses...', step: 'Menambahkan constraint & relevant expressions...', delay: 180000 },
-      { pct: 70, base: 'AI hampir selesai...', step: 'Finalisasi struktur XLSForm...', delay: 300000 },
-      { pct: 80, base: 'AI hampir selesai...', step: 'Menunggu respons final dari server...', delay: 480000 },
-      { pct: 88, base: 'Menunggu server...', step: 'Proses masih berjalan, harap bersabar...', delay: 900000 },
+      { pct: 10, base: 'Membaca dokumen...',    step: 'Mengekstrak teks dari file...',                                             delay:   2000 },
+      { pct: 20, base: 'Mengirim ke AI...',      step: 'AI Claude mulai menganalisis kuesioner...',                                 delay:   6000 },
+      { pct: 30, base: 'AI memproses...',        step: 'Mengidentifikasi struktur pertanyaan & logika skip...',                    delay:  30000 },
+      { pct: 40, base: 'AI memproses...',        step: 'Membuat pertanyaan survey (bisa 5–20 menit untuk dokumen besar)...',       delay:  60000 },
+      { pct: 50, base: 'AI memproses...',        step: 'Menyusun daftar pilihan jawaban (choices)...',                             delay: 120000 },
+      { pct: 60, base: 'AI memproses...',        step: 'Menambahkan constraint & relevant expressions...',                         delay: 180000 },
+      { pct: 70, base: 'AI hampir selesai...',   step: 'Finalisasi struktur XLSForm...',                                           delay: 300000 },
+      { pct: 80, base: 'AI hampir selesai...',   step: 'Menunggu respons final dari server...',                                    delay: 480000 },
+      { pct: 88, base: 'Menunggu server...',     step: 'Proses masih berjalan, harap bersabar...',                                 delay: 900000 },
     ];
 
-    // Jalankan steps berdasarkan delay (bukan interval tetap)
     const stepTimers = aiSteps.map(s =>
       setTimeout(() => {
         progressLabel.dataset.base = s.base;
-        progressLabel.textContent = s.base;
-        progressStep.textContent = s.step;
-        progressBar.style.width = s.pct + '%';
+        progressLabel.textContent  = s.base;
+        progressStep.textContent   = s.step;
+        progressBar.style.width    = s.pct + '%';
       }, s.delay)
     );
 
     try {
-      // fetch tanpa signal timeout — biarkan server yang timeout (30 menit)
-      const resp = await fetch('/api/convert', {
-        method: 'POST',
-        body: formData,
-      });
+      const resp = await fetch('/api/convert', { method: 'POST', body: formData });
 
-      // Bersihkan semua timer
       clearInterval(elapsedInterval);
       stepTimers.forEach(t => clearTimeout(t));
 
@@ -681,17 +747,21 @@
       const data = await resp.json();
       downloadName = data.download_name || 'xlsform_output.xlsx';
 
-      // Fetch the actual file via download endpoint
+      // ★ FIX: simpan UID agar preview XLSForm bisa digunakan
+      currentDownloadUid = data.download_uid;
+
+      // Ambil blob untuk tombol download langsung
       const fileResp = await fetch(`/api/download/${data.download_uid}`);
       if (!fileResp.ok) throw new Error('Gagal mengunduh file hasil konversi.');
       downloadBlob = await fileResp.blob();
 
-      // Render conversion notes jika ada
       if (data.notes) renderConversionNotes(data.notes);
 
       const totalSecs = Math.floor((Date.now() - startTime) / 1000);
       const totalMins = Math.floor(totalSecs / 60);
-      const doneLabel = totalMins > 0 ? `Selesai dalam ${totalMins}m ${totalSecs % 60}s!` : `Selesai dalam ${totalSecs}s!`;
+      const doneLabel = totalMins > 0
+        ? `Selesai dalam ${totalMins}m ${totalSecs % 60}s!`
+        : `Selesai dalam ${totalSecs}s!`;
       setProgress(100, doneLabel, 'XLSForm berhasil dibuat!');
 
       setTimeout(() => {
@@ -704,7 +774,6 @@
       clearInterval(elapsedInterval);
       stepTimers.forEach(t => clearTimeout(t));
 
-      // Bedakan timeout browser vs error server
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
         showError('Koneksi ke server terputus. Pastikan server masih berjalan dan coba lagi.');
       } else {
@@ -713,29 +782,28 @@
     }
   }
 
-  // --- Download ---
+  // ── Download ─────────────────────────────────────────────────────────────────
   downloadBtn.addEventListener('click', () => {
     if (!downloadBlob) return;
     const url = URL.createObjectURL(downloadBlob);
-    const a = document.createElement('a');
-    a.href = url;
+    const a   = document.createElement('a');
+    a.href     = url;
     a.download = downloadName;
     a.click();
     URL.revokeObjectURL(url);
   });
 
-  // --- Convert Another ---
+  // ── Reset ────────────────────────────────────────────────────────────────────
   convertAnotherBtn.addEventListener('click', resetAll);
   retryBtn.addEventListener('click', () => {
     hideAll();
     convertSection.classList.remove('hidden');
   });
 
-  // --- Helpers ---
   function setProgress(pct, label, step) {
-    progressBar.style.width = pct + '%';
+    progressBar.style.width  = pct + '%';
     progressLabel.textContent = label;
-    progressStep.textContent = step;
+    progressStep.textContent  = step;
   }
 
   function hideAll() {
@@ -761,7 +829,7 @@
     fbList.innerHTML = '';
     phList.innerHTML = '';
 
-    const fallbacks    = notes.fallback_questions || [];
+    const fallbacks    = notes.fallback_questions  || [];
     const placeholders = notes.placeholder_choices || [];
 
     if (fallbacks.length > 0) {
@@ -794,16 +862,18 @@
   }
 
   function resetAll() {
-    selectedFile = null;
-    downloadBlob = null;
-    downloadName = '';
-    fileInput.value = '';
+    selectedFile       = null;
+    downloadBlob       = null;
+    downloadName       = '';
+    currentDownloadUid = null;
+    fileInput.value    = '';
     fileNameDisplay.textContent = 'Drag & drop file kuesioner di sini, atau';
     fileNameDisplay.classList.remove('text-primary', 'font-medium');
-    // Reset notes
     document.getElementById('conversionNotes').classList.add('hidden');
     document.getElementById('fallbackSection').classList.add('hidden');
     document.getElementById('placeholderSection').classList.add('hidden');
+    previewUploadPanel.classList.add('hidden');
+    previewXlsformPanel.classList.add('hidden');
     hideAll();
   }
 </script>
