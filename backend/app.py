@@ -43,6 +43,103 @@ def health():
     return jsonify({"status": "ok", "version": "2.0.0"})
 
 
+@app.route("/api/preview-upload", methods=["POST"])
+def preview_upload():
+    """Ekstrak teks mentah dari file yang diupload untuk ditampilkan ke user."""
+    if "file" not in request.files:
+        return jsonify({"error": "Tidak ada file"}), 400
+
+    file = request.files["file"]
+    if not file.filename or not allowed_file(file.filename):
+        return jsonify({"error": "Format tidak didukung"}), 400
+
+    file.seek(0, os.SEEK_END)
+    if file.tell() > MAX_FILE_SIZE:
+        return jsonify({"error": "File terlalu besar"}), 400
+    file.seek(0)
+
+    filename = secure_filename(file.filename)
+    uid      = str(uuid.uuid4())[:8]
+    save_path = UPLOAD_FOLDER / f"{uid}_{filename}"
+
+    try:
+        file.save(str(save_path))
+        ext = filename.rsplit(".", 1)[1].lower()
+
+        if ext == "pdf":
+            from .file_parser import parse_uploaded_file
+            text = parse_uploaded_file(str(save_path))
+        elif ext in ("doc", "docx"):
+            import docx as _docx
+            doc  = _docx.Document(str(save_path))
+            lines = []
+            for para in doc.paragraphs:
+                if para.text.strip():
+                    lines.append(para.text.strip())
+            for tbl in doc.tables:
+                for row in tbl.rows:
+                    cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                    if cells:
+                        lines.append(" | ".join(cells))
+            text = "\n".join(lines)
+        else:
+            return jsonify({"error": "Format tidak didukung"}), 400
+
+        # Batasi ke 8000 karakter untuk preview
+        preview = text[:8000]
+        truncated = len(text) > 8000
+        return jsonify({
+            "preview": preview,
+            "truncated": truncated,
+            "total_chars": len(text),
+            "filename": filename,
+        })
+    except Exception as e:
+        logger.error(f"Preview upload gagal: {e}", exc_info=True)
+        return jsonify({"error": f"Gagal membaca file: {str(e)[:200]}"}), 500
+    finally:
+        if save_path.exists():
+            save_path.unlink()
+
+
+@app.route("/api/preview-xlsform/<uid>")
+def preview_xlsform(uid: str):
+    """Baca file xlsx hasil konversi dan kembalikan isinya sebagai JSON untuk preview."""
+    matches = list(UPLOAD_FOLDER.glob(f"{uid}_*"))
+    if not matches:
+        return jsonify({"error": "File tidak ditemukan atau sudah kadaluarsa"}), 404
+
+    out_path = matches[0]
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(str(out_path), read_only=True)
+
+        def _sheet_to_rows(ws):
+            rows = []
+            headers = []
+            for ri, row in enumerate(ws.iter_rows(values_only=True)):
+                vals = [str(v) if v is not None else "" for v in row]
+                if ri == 0:
+                    headers = vals
+                else:
+                    # Skip baris kosong
+                    if any(v.strip() for v in vals):
+                        rows.append(dict(zip(headers, vals)))
+            return {"headers": headers, "rows": rows}
+
+        survey_data  = _sheet_to_rows(wb["survey"])  if "survey"  in wb.sheetnames else {"headers":[],"rows":[]}
+        choices_data = _sheet_to_rows(wb["choices"]) if "choices" in wb.sheetnames else {"headers":[],"rows":[]}
+        wb.close()
+
+        return jsonify({
+            "survey":  survey_data,
+            "choices": choices_data,
+        })
+    except Exception as e:
+        logger.error(f"Preview xlsform gagal: {e}", exc_info=True)
+        return jsonify({"error": f"Gagal membaca hasil konversi: {str(e)[:200]}"}), 500
+
+
 @app.route("/api/download/<uid>")
 def download_file(uid: str):
     """Endpoint untuk mengunduh file hasil konversi berdasarkan UID."""
