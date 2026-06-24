@@ -33,16 +33,48 @@
   }
   body { min-height: 100dvh; }
 
-  /* ── Preview upload: monospace raw text ── */
+  /* ── Preview upload: HTML dari docx_to_html ── */
   #previewUploadText {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    white-space: pre;        /* jaga spasi & indent asli */
-    overflow-x: auto;        /* scroll horizontal kalau ada baris panjang */
+    font-size: 14px;
+    line-height: 1.7;
+    overflow-x: auto;
     overflow-y: auto;
     max-height: 460px;
-    tab-size: 4;
+  }
+  #previewUploadText table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+  #previewUploadText table td,
+  #previewUploadText table th {
+    border: 1px solid #e2e8f0;
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  #previewUploadText table th {
+    background-color: #f1f5f9;
+    font-weight: 600;
+  }
+  #previewUploadText h1, #previewUploadText h2, #previewUploadText h3,
+  #previewUploadText h4, #previewUploadText h5, #previewUploadText h6 {
+    margin: 12px 0 6px 0;
+    font-weight: 600;
+  }
+  #previewUploadText p {
+    margin: 6px 0;
+  }
+  #previewUploadText ul, #previewUploadText ol {
+    margin: 6px 0;
+    padding-left: 24px;
+  }
+  #previewUploadText strong, #previewUploadText b {
+    font-weight: 700;
+  }
+  #previewUploadText em, #previewUploadText i {
+    font-style: italic;
   }
 
   /* ── Preview XLSForm: tabel yang bisa dibaca ── */
@@ -65,12 +97,10 @@
     padding: 5px 12px;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: top;
-    /* Biarkan teks wrap — user bisa baca isi penuh */
     white-space: normal;
     word-break: break-word;
     max-width: 280px;
   }
-  /* Kolom sempit yang tidak perlu wrap */
   .xlsform-table tbody td.col-type,
   .xlsform-table tbody td.col-name,
   .xlsform-table tbody td.col-required,
@@ -79,11 +109,9 @@
     white-space: nowrap;
     max-width: none;
   }
-  /* Tooltip untuk cell yang mungkin kepotong */
   .xlsform-table tbody td[title] {
     cursor: help;
   }
-  /* Warna zebra baris */
   .row-begin   { background: #dbeafe !important; }
   .row-end     { background: #ede9fe !important; }
   .row-note    { background: #fef9c3 !important; }
@@ -178,14 +206,8 @@
         <p class="mt-xs">Membaca dokumen...</p>
       </div>
       <div id="previewUploadContent" class="hidden">
-        <div id="previewUploadTruncatedNote" class="hidden px-lg pt-md pb-xs">
-          <p class="text-label-sm font-label-sm text-on-surface-variant bg-surface-container px-sm py-xs rounded-lg inline-block">
-            ⚠️ Menampilkan 8.000 karakter pertama dari total <span id="previewUploadTotalChars"></span> karakter
-          </p>
-        </div>
-        <!-- overflow-x: auto ada di CSS class #previewUploadText -->
         <div class="px-lg py-md overflow-x-auto bg-surface-container-low/40">
-          <pre id="previewUploadText"></pre>
+          <div id="previewUploadText"></div>
         </div>
       </div>
       <div id="previewUploadError" class="hidden p-lg text-body-sm text-error"></div>
@@ -450,7 +472,7 @@
   let selectedFile       = null;
   let downloadBlob       = null;
   let downloadName       = '';
-  let currentDownloadUid = null;   // ← di-set saat konversi selesai
+  let currentDownloadUid = null;
 
   // ── Preview Upload ──────────────────────────────────────────────────────────
   previewUploadBtn.addEventListener('click', async () => {
@@ -479,18 +501,7 @@
       if (!resp.ok) throw new Error(data.error || 'Gagal membaca file');
 
       document.getElementById('previewUploadFilename').textContent = `— ${data.filename}`;
-
-      // Tampilkan teks apa adanya — JANGAN di-escape manual, textContent sudah aman
-      document.getElementById('previewUploadText').textContent = data.preview;
-
-      const truncNote = document.getElementById('previewUploadTruncatedNote');
-      if (data.truncated) {
-        document.getElementById('previewUploadTotalChars').textContent =
-          data.total_chars.toLocaleString('id-ID');
-        truncNote.classList.remove('hidden');
-      } else {
-        truncNote.classList.add('hidden');
-      }
+      document.getElementById('previewUploadText').innerHTML = data.html;
 
       document.getElementById('previewUploadLoading').classList.add('hidden');
       document.getElementById('previewUploadContent').classList.remove('hidden');
@@ -543,7 +554,6 @@
   });
 
   // ── Render tabel XLSForm ────────────────────────────────────────────────────
-  // Kolom-kolom pendek yang tidak perlu word-wrap
   const NARROW_COLS = new Set(['type', 'name', 'required', 'read_only', 'appearance',
                                 'list_name', 'value']);
 
@@ -589,7 +599,6 @@
       const groupKey = sheetType === 'choices' ? row['list_name'] : row['type'];
       if (groupKey !== prevGroup) { toggle = !toggle; prevGroup = groupKey; }
 
-      // Pilih kelas warna baris berdasarkan tipe
       if (sheetType === 'survey') {
         const t = (row['type'] || '').toLowerCase();
         if      (t.startsWith('begin'))            tr.className = 'row-begin';
@@ -607,11 +616,10 @@
         const val = row[h] || '';
         td.textContent = val;
 
-        // Kolom pendek: nowrap. Kolom panjang: wrap + tooltip jika > 60 karakter
         if (NARROW_COLS.has(h.toLowerCase())) {
           td.className = `col-${h.toLowerCase().replace(/_/g, '-')}`;
         } else if (val.length > 60) {
-          td.title = val;   // tooltip teks penuh
+          td.title = val;
         }
 
         tr.appendChild(td);
@@ -619,7 +627,6 @@
       tbody.appendChild(tr);
     });
 
-    // Tampilkan pesan kalau kosong
     if (rows.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
@@ -654,7 +661,6 @@
     if (e.target.files.length) handleFileSelected(e.target.files[0]);
   });
 
-  // Drag-and-drop
   ['dragover', 'dragleave', 'drop'].forEach(evt => {
     dropzone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
   });
@@ -746,11 +752,8 @@
 
       const data = await resp.json();
       downloadName = data.download_name || 'xlsform_output.xlsx';
-
-      // ★ FIX: simpan UID agar preview XLSForm bisa digunakan
       currentDownloadUid = data.download_uid;
 
-      // Ambil blob untuk tombol download langsung
       const fileResp = await fetch(`/api/download/${data.download_uid}`);
       if (!fileResp.ok) throw new Error('Gagal mengunduh file hasil konversi.');
       downloadBlob = await fileResp.blob();
