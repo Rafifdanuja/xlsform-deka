@@ -33,50 +33,6 @@
   }
   body { min-height: 100dvh; }
 
-  /* ── Preview upload: HTML dari docx_to_html ── */
-  #previewUploadText {
-    font-size: 14px;
-    line-height: 1.7;
-    overflow-x: auto;
-    overflow-y: auto;
-    max-height: 460px;
-  }
-  #previewUploadText table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 8px 0;
-    font-size: 13px;
-  }
-  #previewUploadText table td,
-  #previewUploadText table th {
-    border: 1px solid #e2e8f0;
-    padding: 6px 10px;
-    text-align: left;
-    vertical-align: top;
-  }
-  #previewUploadText table th {
-    background-color: #f1f5f9;
-    font-weight: 600;
-  }
-  #previewUploadText h1, #previewUploadText h2, #previewUploadText h3,
-  #previewUploadText h4, #previewUploadText h5, #previewUploadText h6 {
-    margin: 12px 0 6px 0;
-    font-weight: 600;
-  }
-  #previewUploadText p {
-    margin: 6px 0;
-  }
-  #previewUploadText ul, #previewUploadText ol {
-    margin: 6px 0;
-    padding-left: 24px;
-  }
-  #previewUploadText strong, #previewUploadText b {
-    font-weight: 700;
-  }
-  #previewUploadText em, #previewUploadText i {
-    font-style: italic;
-  }
-
   /* ── Preview XLSForm: tabel yang bisa dibaca ── */
   .xlsform-table {
     width: 100%;
@@ -121,6 +77,28 @@
   .row-selectm-b { background: #fde68a; }
   .row-odd     { background: #f9fafb; }
   .row-even    { background: #ffffff; }
+
+  /* ── Scroll container untuk preview XLSForm ── */
+  .preview-scroll-pane {
+    overflow: auto;
+    max-height: 360px;
+    border-top: 1px solid #f1f5f9;
+  }
+  /* Sticky header agar tetap terlihat saat scroll */
+  .preview-scroll-pane thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  /* Footer info baris */
+  .preview-row-info {
+    font-size: 11px;
+    color: #94a3b8;
+    padding: 6px 12px;
+    border-top: 1px solid #f1f5f9;
+    background: #f8fafc;
+    text-align: right;
+  }
 </style>
 </head>
 
@@ -176,41 +154,12 @@
     </div>
 
     <!-- Convert Button (hidden until file selected) -->
-    <div id="convertSection" class="hidden fade-in space-y-md">
-      <button id="previewUploadBtn"
-              class="w-full bg-surface-container text-on-surface py-sm px-lg rounded-xl font-label-md text-label-md text-[15px] flex items-center justify-center gap-sm hover:bg-surface-container-high active:scale-95 transition-all border border-outline-variant">
-        <span class="material-symbols-outlined text-[18px]">visibility</span>
-        Lihat Isi Dokumen
-      </button>
+    <div id="convertSection" class="hidden fade-in">
       <button id="convertBtn"
               class="w-full bg-primary text-on-primary py-md px-lg rounded-xl font-label-md text-label-md text-[16px] flex items-center justify-center gap-sm hover:opacity-90 active:scale-95 transition-all shadow-md">
         <span class="material-symbols-outlined">auto_fix_high</span>
         Konversi ke XLSForm
       </button>
-    </div>
-
-    <!-- Preview Upload Panel (hidden until toggled) -->
-    <div id="previewUploadPanel" class="hidden fade-in bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden">
-      <div class="flex items-center justify-between px-lg py-md border-b border-outline-variant bg-surface-container-low">
-        <div class="flex items-center gap-sm">
-          <span class="material-symbols-outlined text-[18px] text-primary">description</span>
-          <span class="text-label-md font-label-md text-on-surface">Pratinjau Isi Dokumen</span>
-          <span id="previewUploadFilename" class="text-body-sm font-body-sm text-on-surface-variant"></span>
-        </div>
-        <button id="closePreviewUploadBtn" class="text-on-surface-variant hover:text-on-surface transition-colors">
-          <span class="material-symbols-outlined text-[20px]">close</span>
-        </button>
-      </div>
-      <div id="previewUploadLoading" class="p-lg text-center text-body-sm text-on-surface-variant">
-        <span class="material-symbols-outlined spin-slow text-primary">sync</span>
-        <p class="mt-xs">Membaca dokumen...</p>
-      </div>
-      <div id="previewUploadContent" class="hidden">
-        <div class="px-lg py-md overflow-x-auto bg-surface-container-low/40">
-          <div id="previewUploadText"></div>
-        </div>
-      </div>
-      <div id="previewUploadError" class="hidden p-lg text-body-sm text-error"></div>
     </div>
 
     <!-- Processing State -->
@@ -230,7 +179,7 @@
       </p>
       <div class="mt-md p-sm rounded-lg bg-surface-container-low border border-outline-variant">
         <p class="text-label-sm font-label-sm text-on-surface-variant text-center">
-          ⏳ <strong>Proses AI bisa memakan waktu 5–30 menit</strong> tergantung panjang kuesioner.<br/>
+          ⏳ <strong>Proses AI bisa memakan waktu 5–30 menit</strong> tergantang panjang kuesioner.<br/>
           Jangan tutup tab ini. Halaman akan otomatis update saat selesai.
         </p>
       </div>
@@ -308,21 +257,25 @@
 
     <!-- Preview XLSForm Panel (hidden until toggled) -->
     <div id="previewXlsformPanel" class="hidden fade-in bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden">
+      <!-- Header -->
       <div class="flex items-center justify-between px-lg py-md border-b border-outline-variant bg-surface-container-low">
         <div class="flex items-center gap-sm">
           <span class="material-symbols-outlined text-[18px] text-secondary">table_view</span>
           <span class="text-label-md font-label-md text-on-surface">Pratinjau XLSForm</span>
+          <span class="text-body-sm font-body-sm text-on-surface-variant">(50 baris pertama)</span>
         </div>
         <button id="closePreviewXlsformBtn" class="text-on-surface-variant hover:text-on-surface transition-colors">
           <span class="material-symbols-outlined text-[20px]">close</span>
         </button>
       </div>
 
+      <!-- Loading -->
       <div id="previewXlsformLoading" class="p-lg text-center text-body-sm text-on-surface-variant">
         <span class="material-symbols-outlined spin-slow text-secondary">sync</span>
         <p class="mt-xs">Membaca hasil konversi...</p>
       </div>
 
+      <!-- Content -->
       <div id="previewXlsformContent" class="hidden">
         <!-- Tab navigation -->
         <div class="flex border-b border-outline-variant">
@@ -341,19 +294,25 @@
         </div>
 
         <!-- Survey tab -->
-        <div id="paneeSurvey" class="overflow-auto" style="max-height: 480px;">
-          <table class="xlsform-table">
-            <thead id="surveyThead" class="bg-primary text-on-primary"></thead>
-            <tbody id="surveyTbody"></tbody>
-          </table>
+        <div id="paneeSurvey">
+          <div class="preview-scroll-pane">
+            <table class="xlsform-table">
+              <thead id="surveyThead" class="bg-primary text-on-primary"></thead>
+              <tbody id="surveyTbody"></tbody>
+            </table>
+          </div>
+          <div id="surveyRowInfo" class="preview-row-info hidden"></div>
         </div>
 
         <!-- Choices tab -->
-        <div id="paneeChoices" class="hidden overflow-auto" style="max-height: 480px;">
-          <table class="xlsform-table">
-            <thead id="choicesThead" class="bg-secondary text-on-secondary"></thead>
-            <tbody id="choicesTbody"></tbody>
-          </table>
+        <div id="paneeChoices" class="hidden">
+          <div class="preview-scroll-pane">
+            <table class="xlsform-table">
+              <thead id="choicesThead" class="bg-secondary text-on-secondary"></thead>
+              <tbody id="choicesTbody"></tbody>
+            </table>
+          </div>
+          <div id="choicesRowInfo" class="preview-row-info hidden"></div>
         </div>
       </div>
 
@@ -460,11 +419,6 @@
   const resultFileName    = document.getElementById('resultFileName');
   const downloadBtn       = document.getElementById('downloadBtn');
   const convertAnotherBtn = document.getElementById('convertAnotherBtn');
-
-  // Preview elements
-  const previewUploadBtn       = document.getElementById('previewUploadBtn');
-  const previewUploadPanel     = document.getElementById('previewUploadPanel');
-  const closePreviewUploadBtn  = document.getElementById('closePreviewUploadBtn');
   const previewXlsformBtn      = document.getElementById('previewXlsformBtn');
   const previewXlsformPanel    = document.getElementById('previewXlsformPanel');
   const closePreviewXlsformBtn = document.getElementById('closePreviewXlsformBtn');
@@ -473,49 +427,6 @@
   let downloadBlob       = null;
   let downloadName       = '';
   let currentDownloadUid = null;
-
-  // ── Preview Upload ──────────────────────────────────────────────────────────
-  previewUploadBtn.addEventListener('click', async () => {
-    if (!selectedFile) return;
-
-    // Toggle: kalau sudah terbuka, tutup
-    if (!previewUploadPanel.classList.contains('hidden')) {
-      previewUploadPanel.classList.add('hidden');
-      return;
-    }
-
-    // Reset state panel
-    document.getElementById('previewUploadLoading').classList.remove('hidden');
-    document.getElementById('previewUploadContent').classList.add('hidden');
-    document.getElementById('previewUploadError').classList.add('hidden');
-    previewUploadPanel.classList.remove('hidden');
-    previewUploadPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
-    try {
-      const resp = await fetch('/api/preview-upload', { method: 'POST', body: formData });
-      const data = await resp.json();
-
-      if (!resp.ok) throw new Error(data.error || 'Gagal membaca file');
-
-      document.getElementById('previewUploadFilename').textContent = `— ${data.filename}`;
-      document.getElementById('previewUploadText').innerHTML = data.html;
-
-      document.getElementById('previewUploadLoading').classList.add('hidden');
-      document.getElementById('previewUploadContent').classList.remove('hidden');
-    } catch (err) {
-      document.getElementById('previewUploadLoading').classList.add('hidden');
-      const errEl = document.getElementById('previewUploadError');
-      errEl.textContent = '⚠️ ' + (err.message || 'Gagal membaca dokumen.');
-      errEl.classList.remove('hidden');
-    }
-  });
-
-  closePreviewUploadBtn.addEventListener('click', () => {
-    previewUploadPanel.classList.add('hidden');
-  });
 
   // ── Preview XLSForm ─────────────────────────────────────────────────────────
   previewXlsformBtn.addEventListener('click', async () => {
@@ -556,28 +467,34 @@
   // ── Render tabel XLSForm ────────────────────────────────────────────────────
   const NARROW_COLS = new Set(['type', 'name', 'required', 'read_only', 'appearance',
                                 'list_name', 'value']);
+  const PREVIEW_LIMIT = 50;
 
   function renderXlsformPreview(data) {
     buildTable(
       document.getElementById('surveyThead'),
       document.getElementById('surveyTbody'),
+      document.getElementById('surveyRowInfo'),
       data.survey.headers,
       data.survey.rows,
       'survey'
     );
-    document.getElementById('surveyRowCount').textContent = `(${data.survey.rows.length} baris)`;
+    const surveyTotal = data.survey.total_rows ?? data.survey.rows.length;
+    const surveyShown = data.survey.rows.length;
+    document.getElementById('surveyRowCount').textContent = `(${surveyTotal} baris)`;
 
     buildTable(
       document.getElementById('choicesThead'),
       document.getElementById('choicesTbody'),
+      document.getElementById('choicesRowInfo'),
       data.choices.headers,
       data.choices.rows,
       'choices'
     );
-    document.getElementById('choicesRowCount').textContent = `(${data.choices.rows.length} baris)`;
+    const choicesTotal = data.choices.total_rows ?? data.choices.rows.length;
+    document.getElementById('choicesRowCount').textContent = `(${choicesTotal} baris)`;
   }
 
-  function buildTable(thead, tbody, headers, rows, sheetType) {
+  function buildTable(thead, tbody, rowInfoEl, headers, rows, sheetType) {
     thead.innerHTML = '';
     tbody.innerHTML = '';
 
@@ -590,7 +507,7 @@
     });
     thead.appendChild(trHead);
 
-    // Body rows
+    // Body rows — sudah dibatasi 50 dari server, render semua yang diterima
     let toggle = false;
     let prevGroup = null;
 
@@ -615,13 +532,11 @@
         const td = document.createElement('td');
         const val = row[h] || '';
         td.textContent = val;
-
         if (NARROW_COLS.has(h.toLowerCase())) {
           td.className = `col-${h.toLowerCase().replace(/_/g, '-')}`;
         } else if (val.length > 60) {
           td.title = val;
         }
-
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -635,6 +550,12 @@
       td.style.cssText = 'text-align:center; padding: 16px; color: #94a3b8;';
       tr.appendChild(td);
       tbody.appendChild(tr);
+    }
+
+    // Footer info — tampilkan jika ada lebih dari yang ditampilkan
+    if (rowInfoEl) {
+      rowInfoEl.classList.add('hidden');
+      rowInfoEl.textContent = '';
     }
   }
 
@@ -875,7 +796,6 @@
     document.getElementById('conversionNotes').classList.add('hidden');
     document.getElementById('fallbackSection').classList.add('hidden');
     document.getElementById('placeholderSection').classList.add('hidden');
-    previewUploadPanel.classList.add('hidden');
     previewXlsformPanel.classList.add('hidden');
     hideAll();
   }
