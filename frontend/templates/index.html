@@ -84,13 +84,11 @@
     max-height: 360px;
     border-top: 1px solid #f1f5f9;
   }
-  /* Sticky header agar tetap terlihat saat scroll */
   .preview-scroll-pane thead th {
     position: sticky;
     top: 0;
     z-index: 2;
   }
-  /* Footer info baris */
   .preview-row-info {
     font-size: 11px;
     color: #94a3b8;
@@ -215,7 +213,6 @@
             File siap di-upload ke KoboToolbox. Pastikan validasi XLSForm sebelum deploy.
           </p>
         </div>
-        <!-- PERUBAHAN 1: Blok tombol baru -->
         <div class="flex flex-col gap-sm w-full md:w-auto min-w-[176px]">
           <button id="downloadBtn"
                   class="w-full bg-primary text-on-primary px-lg h-11 rounded-lg font-label-md text-label-md flex items-center justify-center gap-sm hover:opacity-90 active:scale-95 transition-all shadow-sm">
@@ -428,17 +425,38 @@
   let downloadBlob       = null;
   let downloadName       = '';
   let currentDownloadUid = null;
+  let previewDataCache   = null; // Cache untuk preview data
 
   // ── Preview XLSForm ─────────────────────────────────────────────────────────
-  previewXlsformBtn.addEventListener('click', async () => {
+  async function loadPreviewData(forceRefresh = false) {
+    if (!currentDownloadUid) return null;
+    
+    // Gunakan cache jika ada dan tidak force refresh
+    if (previewDataCache && !forceRefresh) {
+      return previewDataCache;
+    }
+
+    try {
+      const resp = await fetch(`/api/preview-xlsform/${currentDownloadUid}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Gagal membaca hasil konversi');
+      previewDataCache = data;
+      return data;
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async function showPreviewPanel(switchToTab = null, highlightFn = null) {
     if (!currentDownloadUid) return;
 
-    // Toggle
+    // Toggle jika panel sudah terbuka
     if (!previewXlsformPanel.classList.contains('hidden')) {
       previewXlsformPanel.classList.add('hidden');
       return;
     }
 
+    // Reset state
     document.getElementById('previewXlsformLoading').classList.remove('hidden');
     document.getElementById('previewXlsformContent').classList.add('hidden');
     document.getElementById('previewXlsformError').classList.add('hidden');
@@ -446,19 +464,30 @@
     previewXlsformPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
     try {
-      const resp = await fetch(`/api/preview-xlsform/${currentDownloadUid}`);
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Gagal membaca hasil konversi');
-
+      const data = await loadPreviewData();
       renderXlsformPreview(data);
       document.getElementById('previewXlsformLoading').classList.add('hidden');
       document.getElementById('previewXlsformContent').classList.remove('hidden');
+      
+      // Switch tab jika diminta
+      if (switchToTab) {
+        switchTab(switchToTab);
+      }
+      
+      // Jalankan highlight jika ada
+      if (highlightFn) {
+        setTimeout(highlightFn, 300);
+      }
     } catch (err) {
       document.getElementById('previewXlsformLoading').classList.add('hidden');
       const errEl = document.getElementById('previewXlsformError');
       errEl.textContent = '⚠️ ' + (err.message || 'Gagal memuat preview.');
       errEl.classList.remove('hidden');
     }
+  }
+
+  previewXlsformBtn.addEventListener('click', () => {
+    showPreviewPanel();
   });
 
   closePreviewXlsformBtn.addEventListener('click', () => {
@@ -553,7 +582,6 @@
       tbody.appendChild(tr);
     }
 
-    // Footer info — tampilkan jika ada lebih dari yang ditampilkan
     if (rowInfoEl) {
       rowInfoEl.classList.add('hidden');
       rowInfoEl.textContent = '';
@@ -572,14 +600,15 @@
       : 'px-lg py-sm text-label-md font-label-md text-on-surface-variant border-b-2 border-transparent hover:text-on-surface transition-all';
   }
 
-  // ── PERUBAHAN 3: Fungsi highlight ──────────────────────────────────────────
+  // ── Fungsi highlight ──────────────────────────────────────────────────────────
   function highlightRowByName(qid) {
     document.querySelectorAll('#surveyTbody tr').forEach(tr => {
       const nameCell = tr.querySelector('td:nth-child(2)');
       if (nameCell && nameCell.textContent.trim() === qid) {
         tr.style.outline = '2px solid #1a56db';
+        tr.style.outlineOffset = '-1px';
         tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => tr.style.outline = '', 3000);
+        setTimeout(() => { tr.style.outline = ''; tr.style.outlineOffset = ''; }, 4000);
       }
     });
   }
@@ -589,8 +618,9 @@
       const cell = tr.querySelector('td');
       if (cell && cell.textContent.trim() === listName) {
         tr.style.outline = '2px solid #2e7d32';
+        tr.style.outlineOffset = '-1px';
         tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => tr.style.outline = '', 3000);
+        setTimeout(() => { tr.style.outline = ''; tr.style.outlineOffset = ''; }, 4000);
       }
     });
   }
@@ -698,6 +728,7 @@
       const data = await resp.json();
       downloadName = data.download_name || 'xlsform_output.xlsx';
       currentDownloadUid = data.download_uid;
+      previewDataCache = null; // Reset cache karena data baru
 
       const fileResp = await fetch(`/api/download/${data.download_uid}`);
       if (!fileResp.ok) throw new Error('Gagal mengunduh file hasil konversi.');
@@ -767,7 +798,7 @@
     errorState.classList.remove('hidden');
   }
 
-  // ── PERUBAHAN 2: renderConversionNotes dengan tombol "Lihat" ──────────────
+  // ── renderConversionNotes dengan tombol "Lihat" ──────────────────────────
   function renderConversionNotes(notes) {
     const container    = document.getElementById('conversionNotes');
     const fbSection    = document.getElementById('fallbackSection');
@@ -795,9 +826,8 @@
         btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">arrow_forward</span> Lihat`;
         btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(21,101,192,.25);border-radius:5px;padding:2px 8px;color:#1565c0;background:none;cursor:pointer;white-space:nowrap';
         btn.addEventListener('click', () => {
-          previewXlsformPanel.classList.remove('hidden');
-          previewXlsformPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          highlightRowByName(q.id);
+          // Load ulang preview dengan force refresh, switch ke survey, highlight
+          showPreviewPanel('survey', () => highlightRowByName(q.id));
         });
         
         li.appendChild(info);
@@ -822,10 +852,8 @@
         btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">arrow_forward</span> Lihat`;
         btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(46,125,50,.25);border-radius:5px;padding:2px 8px;color:#2e7d32;background:none;cursor:pointer;white-space:nowrap';
         btn.addEventListener('click', () => {
-          previewXlsformPanel.classList.remove('hidden');
-          switchTab('choices');
-          previewXlsformPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          highlightRowByListName(p.list_name);
+          // Load ulang preview dengan force refresh, switch ke choices, highlight
+          showPreviewPanel('choices', () => highlightRowByListName(p.list_name));
         });
         
         li.appendChild(info);
@@ -849,6 +877,7 @@
     downloadBlob       = null;
     downloadName       = '';
     currentDownloadUid = null;
+    previewDataCache   = null;
     fileInput.value    = '';
     fileNameDisplay.textContent = 'Drag & drop file kuesioner di sini, atau';
     fileNameDisplay.classList.remove('text-primary', 'font-medium');
