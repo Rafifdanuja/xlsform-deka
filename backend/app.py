@@ -187,111 +187,46 @@ def index():
 def health():
     return jsonify({"status": "ok", "version": "2.0.0"})
 
-
-@app.route("/api/preview-upload", methods=["POST"])
-def preview_upload():
-    """
-    Render dokumen sebagai HTML agar browser bisa tampilkan tabel, bold, dll
-    persis seperti membuka file di Word — tanpa ekstraksi/distorsi teks.
-    """
-    if "file" not in request.files:
-        return jsonify({"error": "Tidak ada file"}), 400
-
-    file = request.files["file"]
-    if not file.filename or not allowed_file(file.filename):
-        return jsonify({"error": "Format tidak didukung"}), 400
-
-    file.seek(0, os.SEEK_END)
-    if file.tell() > MAX_FILE_SIZE:
-        return jsonify({"error": "File terlalu besar"}), 400
-    file.seek(0)
-
-    filename  = secure_filename(file.filename)
-    uid       = str(uuid.uuid4())[:8]
-    save_path = UPLOAD_FOLDER / f"{uid}_{filename}"
-    temp_files: list[Path] = [save_path]
-
-    try:
-        file.save(str(save_path))
-        ext = filename.rsplit(".", 1)[1].lower()
-
-        if ext == "pdf":
-            # PDF: embed langsung sebagai base64 di dalam <iframe>
-            import base64
-            pdf_b64 = base64.b64encode(save_path.read_bytes()).decode()
-            html_content = (
-                f'<iframe src="data:application/pdf;base64,{pdf_b64}" '
-                f'style="width:100%;height:600px;border:none"></iframe>'
-            )
-
-        elif ext == "doc":
-            converted_path, ok, method = _convert_doc_to_docx(save_path)
-            if converted_path != save_path:
-                temp_files.append(converted_path)
-
-            if not ok or method == "antiword_text":
-                return jsonify({
-                    "error": (
-                        "File .doc tidak bisa dipratinjau karena LibreOffice tidak tersedia "
-                        "di server. Simpan ulang file sebagai .docx lalu upload kembali."
-                    )
-                }), 400
-
-            html_content = _docx_to_html(str(converted_path))
-
-        elif ext == "docx":
-            html_content = _docx_to_html(str(save_path))
-
-        else:
-            return jsonify({"error": "Format tidak didukung"}), 400
-
-        return jsonify({
-            "html":     html_content,
-            "filename": filename,
-        })
-
-    except Exception as e:
-        logger.error(f"Preview upload gagal: {e}", exc_info=True)
-        return jsonify({"error": f"Gagal membaca file: {str(e)[:200]}"}), 500
-    finally:
-        for f in temp_files:
-            if f.exists():
-                f.unlink(missing_ok=True)
-
-
 @app.route("/api/preview-xlsform/<uid>")
 def preview_xlsform(uid: str):
-    """Baca file xlsx hasil konversi dan kembalikan isinya sebagai JSON untuk preview."""
+    """
+    Baca file xlsx hasil konversi dan kembalikan isinya sebagai JSON untuk preview.
+    Dibatasi 50 baris pertama per sheet; total_rows berisi jumlah baris asli.
+    """
+    PREVIEW_LIMIT = 50
+ 
     matches = list(UPLOAD_FOLDER.glob(f"{uid}_*"))
     if not matches:
         return jsonify({"error": "File tidak ditemukan atau sudah kadaluarsa"}), 404
-
+ 
     out_path = matches[0]
     try:
         import openpyxl
         wb = openpyxl.load_workbook(str(out_path), read_only=True)
-
+ 
         def _sheet_to_rows(ws):
-            rows = []
             headers = []
+            rows = []
+            total_rows = 0
             for ri, row in enumerate(ws.iter_rows(values_only=True)):
                 vals = [str(v) if v is not None else "" for v in row]
                 if ri == 0:
                     headers = vals
                 else:
                     if any(v.strip() for v in vals):
-                        rows.append(dict(zip(headers, vals)))
-            return {"headers": headers, "rows": rows}
-
-        survey_data  = _sheet_to_rows(wb["survey"])  if "survey"  in wb.sheetnames else {"headers": [], "rows": []}
-        choices_data = _sheet_to_rows(wb["choices"]) if "choices" in wb.sheetnames else {"headers": [], "rows": []}
+                        total_rows += 1
+                        if len(rows) < PREVIEW_LIMIT:
+                            rows.append(dict(zip(headers, vals)))
+            return {"headers": headers, "rows": rows, "total_rows": total_rows}
+ 
+        survey_data  = _sheet_to_rows(wb["survey"])  if "survey"  in wb.sheetnames else {"headers": [], "rows": [], "total_rows": 0}
+        choices_data = _sheet_to_rows(wb["choices"]) if "choices" in wb.sheetnames else {"headers": [], "rows": [], "total_rows": 0}
         wb.close()
-
+ 
         return jsonify({"survey": survey_data, "choices": choices_data})
     except Exception as e:
         logger.error(f"Preview xlsform gagal: {e}", exc_info=True)
         return jsonify({"error": f"Gagal membaca hasil konversi: {str(e)[:200]}"}), 500
-
 
 @app.route("/api/download/<uid>")
 def download_file(uid: str):
