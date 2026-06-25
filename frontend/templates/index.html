@@ -4,7 +4,6 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>XLSForm Converter — KoboToolbox</title>
-<!-- Semua aset lokal — tidak butuh internet / CDN -->
 <link rel="stylesheet" href="/static/css/inter.css"/>
 <link rel="stylesheet" href="/static/css/material-icons.css"/>
 <link rel="stylesheet" href="/static/css/tailwind.css"/>
@@ -33,7 +32,7 @@
   }
   body { min-height: 100dvh; }
 
-  /* ── Preview XLSForm: tabel yang bisa dibaca ── */
+  /* ── Preview XLSForm panel besar (50 baris) ── */
   .xlsform-table {
     width: 100%;
     border-collapse: collapse;
@@ -65,9 +64,7 @@
     white-space: nowrap;
     max-width: none;
   }
-  .xlsform-table tbody td[title] {
-    cursor: help;
-  }
+  .xlsform-table tbody td[title] { cursor: help; }
   .row-begin   { background: #dbeafe !important; }
   .row-end     { background: #ede9fe !important; }
   .row-note    { background: #fef9c3 !important; }
@@ -77,8 +74,6 @@
   .row-selectm-b { background: #fde68a; }
   .row-odd     { background: #f9fafb; }
   .row-even    { background: #ffffff; }
-
-  /* ── Scroll container untuk preview XLSForm ── */
   .preview-scroll-pane {
     overflow: auto;
     max-height: 360px;
@@ -112,21 +107,26 @@
     align-items: center;
     justify-content: space-between;
     padding: 6px 12px;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
+    background: #eff6ff;
+    border-bottom: 1px solid #dbeafe;
     font-size: 11px;
-    color: #475569;
+    color: #1e40af;
     font-weight: 600;
   }
-  .notes-detail-panel .ndp-scroll {
+  .notes-detail-panel.choices-panel .ndp-header {
+    background: #f0fdf4;
+    border-bottom-color: #bbf7d0;
+    color: #166534;
+  }
+  .ndp-scroll {
     overflow-x: auto;
-    max-height: 220px;
     overflow-y: auto;
+    max-height: 220px;
   }
   .notes-detail-panel table {
     border-collapse: collapse;
     width: 100%;
-    min-width: 500px;
+    min-width: 400px;
     font-size: 11px;
   }
   .notes-detail-panel thead th {
@@ -137,6 +137,7 @@
     color: #fff;
     position: sticky;
     top: 0;
+    z-index: 1;
   }
   .notes-detail-panel.choices-panel thead th {
     background: #166534;
@@ -148,21 +149,23 @@
     word-break: break-word;
     max-width: 240px;
   }
-  .notes-detail-panel .ndp-loading {
+  .ndp-loading {
     padding: 16px;
     text-align: center;
     color: #94a3b8;
+    font-size: 12px;
   }
-  .notes-detail-panel .ndp-error {
+  .ndp-error {
     padding: 10px 14px;
     color: #dc2626;
     font-size: 11px;
   }
-  .notes-detail-panel .ndp-empty {
+  .ndp-empty {
     padding: 16px;
     text-align: center;
     color: #94a3b8;
     font-style: italic;
+    font-size: 12px;
   }
 </style>
 </head>
@@ -218,7 +221,7 @@
       </div>
     </div>
 
-    <!-- Convert Button (hidden until file selected) -->
+    <!-- Convert Button -->
     <div id="convertSection" class="hidden fade-in">
       <button id="convertBtn"
               class="w-full bg-primary text-on-primary py-md px-lg rounded-xl font-label-md text-label-md text-[16px] flex items-center justify-center gap-sm hover:opacity-90 active:scale-95 transition-all shadow-md">
@@ -267,7 +270,7 @@
       </div>
     </div>
 
-    <!-- Result/Download Area (hidden until done) -->
+    <!-- Result/Download Area -->
     <div id="resultState" class="hidden bg-white rounded-xl shadow-sm p-lg border border-secondary-container bg-gradient-to-br from-white to-secondary-container/5 fade-in">
       <div class="flex flex-col md:flex-row items-center gap-lg">
         <div class="w-16 h-16 rounded-xl bg-secondary-container flex items-center justify-center flex-shrink-0">
@@ -309,20 +312,19 @@
           <p class="text-body-sm font-body-sm text-on-surface-variant mb-xs">
             ⚠️ <strong>Pertanyaan dengan tipe fallback</strong> — route_type tidak dikenali, tipe ditentukan otomatis:
           </p>
-          <ul id="fallbackList" class="text-body-sm font-body-sm text-on-surface-variant space-y-1 list-disc pl-4"></ul>
+          <ul id="fallbackList" class="text-body-sm font-body-sm text-on-surface-variant space-y-1"></ul>
         </div>
         <div id="placeholderSection" class="hidden">
           <p class="text-body-sm font-body-sm text-on-surface-variant mb-xs">
             📋 <strong>Opsi jawaban perlu diisi manual</strong> — daftar pilihan di sheet <em>choices</em> masih berisi placeholder:
           </p>
-          <ul id="placeholderList" class="text-body-sm font-body-sm text-on-surface-variant space-y-1 list-disc pl-4"></ul>
+          <ul id="placeholderList" class="text-body-sm font-body-sm text-on-surface-variant space-y-1"></ul>
         </div>
       </div>
     </div>
 
-    <!-- Preview XLSForm Panel (hidden until toggled) -->
+    <!-- Preview XLSForm Panel (50 baris pertama) -->
     <div id="previewXlsformPanel" class="hidden fade-in bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden">
-      <!-- Header -->
       <div class="flex items-center justify-between px-lg py-md border-b border-outline-variant bg-surface-container-low">
         <div class="flex items-center gap-sm">
           <span class="material-symbols-outlined text-[18px] text-secondary">table_view</span>
@@ -333,16 +335,11 @@
           <span class="material-symbols-outlined text-[20px]">close</span>
         </button>
       </div>
-
-      <!-- Loading -->
       <div id="previewXlsformLoading" class="p-lg text-center text-body-sm text-on-surface-variant">
         <span class="material-symbols-outlined spin-slow text-secondary">sync</span>
         <p class="mt-xs">Membaca hasil konversi...</p>
       </div>
-
-      <!-- Content -->
       <div id="previewXlsformContent" class="hidden">
-        <!-- Tab navigation -->
         <div class="flex border-b border-outline-variant">
           <button id="tabSurvey"
                   class="px-lg py-sm text-label-md font-label-md text-primary border-b-2 border-primary transition-all"
@@ -357,8 +354,6 @@
             <span id="choicesRowCount" class="ml-xs text-label-sm text-on-surface-variant"></span>
           </button>
         </div>
-
-        <!-- Survey tab -->
         <div id="paneeSurvey">
           <div class="preview-scroll-pane">
             <table class="xlsform-table">
@@ -368,8 +363,6 @@
           </div>
           <div id="surveyRowInfo" class="preview-row-info hidden"></div>
         </div>
-
-        <!-- Choices tab -->
         <div id="paneeChoices" class="hidden">
           <div class="preview-scroll-pane">
             <table class="xlsform-table">
@@ -380,7 +373,6 @@
           <div id="choicesRowInfo" class="preview-row-info hidden"></div>
         </div>
       </div>
-
       <div id="previewXlsformError" class="hidden p-lg text-body-sm text-error"></div>
     </div>
 
@@ -492,110 +484,70 @@
   let downloadBlob       = null;
   let downloadName       = '';
   let currentDownloadUid = null;
-  let previewDataCache   = null; // Cache untuk preview data
+  let previewDataCache   = null;
 
-  // ── Preview XLSForm ─────────────────────────────────────────────────────────
-  async function loadPreviewData(forceRefresh = false) {
+  // ════════════════════════════════════════════════════════════
+  // PANEL BESAR — Preview 50 baris pertama
+  // ════════════════════════════════════════════════════════════
+  async function loadPreviewData() {
     if (!currentDownloadUid) return null;
-    
-    // Gunakan cache jika ada dan tidak force refresh
-    if (previewDataCache && !forceRefresh) {
-      return previewDataCache;
-    }
-
-    try {
-      const resp = await fetch(`/api/preview-xlsform/${currentDownloadUid}`);
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Gagal membaca hasil konversi');
-      previewDataCache = data;
-      return data;
-    } catch (err) {
-      throw err;
-    }
+    if (previewDataCache) return previewDataCache;
+    const resp = await fetch(`/api/preview-xlsform/${currentDownloadUid}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Gagal membaca hasil konversi');
+    previewDataCache = data;
+    return data;
   }
 
-  async function showPreviewPanel(switchToTab = null, highlightFn = null) {
-    if (!currentDownloadUid) return;
-
-    // Toggle jika panel sudah terbuka
+  previewXlsformBtn.addEventListener('click', async () => {
     if (!previewXlsformPanel.classList.contains('hidden')) {
       previewXlsformPanel.classList.add('hidden');
       return;
     }
-
-    // Reset state
     document.getElementById('previewXlsformLoading').classList.remove('hidden');
     document.getElementById('previewXlsformContent').classList.add('hidden');
     document.getElementById('previewXlsformError').classList.add('hidden');
     previewXlsformPanel.classList.remove('hidden');
     previewXlsformPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
     try {
       const data = await loadPreviewData();
       renderXlsformPreview(data);
       document.getElementById('previewXlsformLoading').classList.add('hidden');
       document.getElementById('previewXlsformContent').classList.remove('hidden');
-      
-      // Switch tab jika diminta
-      if (switchToTab) {
-        switchTab(switchToTab);
-      }
-      
-      // Jalankan highlight jika ada
-      if (highlightFn) {
-        setTimeout(highlightFn, 300);
-      }
     } catch (err) {
       document.getElementById('previewXlsformLoading').classList.add('hidden');
       const errEl = document.getElementById('previewXlsformError');
       errEl.textContent = '⚠️ ' + (err.message || 'Gagal memuat preview.');
       errEl.classList.remove('hidden');
     }
-  }
-
-  previewXlsformBtn.addEventListener('click', () => {
-    showPreviewPanel();
   });
 
   closePreviewXlsformBtn.addEventListener('click', () => {
     previewXlsformPanel.classList.add('hidden');
   });
 
-  // ── Render tabel XLSForm ────────────────────────────────────────────────────
-  const NARROW_COLS = new Set(['type', 'name', 'required', 'read_only', 'appearance',
-                                'list_name', 'value']);
-  const PREVIEW_LIMIT = 50;
+  const NARROW_COLS = new Set(['type','name','required','read_only','appearance','list_name','value']);
 
   function renderXlsformPreview(data) {
     buildTable(
       document.getElementById('surveyThead'),
       document.getElementById('surveyTbody'),
       document.getElementById('surveyRowInfo'),
-      data.survey.headers,
-      data.survey.rows,
-      'survey'
+      data.survey.headers, data.survey.rows, 'survey'
     );
-    const surveyTotal = data.survey.total_rows ?? data.survey.rows.length;
-    const surveyShown = data.survey.rows.length;
-    document.getElementById('surveyRowCount').textContent = `(${surveyTotal} baris)`;
-
+    document.getElementById('surveyRowCount').textContent = `(${data.survey.total_rows} baris)`;
     buildTable(
       document.getElementById('choicesThead'),
       document.getElementById('choicesTbody'),
       document.getElementById('choicesRowInfo'),
-      data.choices.headers,
-      data.choices.rows,
-      'choices'
+      data.choices.headers, data.choices.rows, 'choices'
     );
-    const choicesTotal = data.choices.total_rows ?? data.choices.rows.length;
-    document.getElementById('choicesRowCount').textContent = `(${choicesTotal} baris)`;
+    document.getElementById('choicesRowCount').textContent = `(${data.choices.total_rows} baris)`;
   }
 
   function buildTable(thead, tbody, rowInfoEl, headers, rows, sheetType) {
     thead.innerHTML = '';
     tbody.innerHTML = '';
-
-    // Header row
     const trHead = document.createElement('tr');
     headers.forEach(h => {
       const th = document.createElement('th');
@@ -604,36 +556,29 @@
     });
     thead.appendChild(trHead);
 
-    // Body rows — sudah dibatasi 50 dari server, render semua yang diterima
     let toggle = false;
     let prevGroup = null;
-
     rows.forEach(row => {
       const tr = document.createElement('tr');
       const groupKey = sheetType === 'choices' ? row['list_name'] : row['type'];
       if (groupKey !== prevGroup) { toggle = !toggle; prevGroup = groupKey; }
-
       if (sheetType === 'survey') {
         const t = (row['type'] || '').toLowerCase();
-        if      (t.startsWith('begin'))            tr.className = 'row-begin';
-        else if (t.startsWith('end'))              tr.className = 'row-end';
-        else if (t === 'note')                     tr.className = 'row-note';
-        else if (t.startsWith('select_multiple'))  tr.className = toggle ? 'row-selectm-a' : 'row-selectm-b';
-        else if (t.startsWith('select_one'))       tr.className = toggle ? 'row-select1-a' : 'row-select1-b';
-        else                                       tr.className = toggle ? 'row-odd' : 'row-even';
+        if      (t.startsWith('begin'))           tr.className = 'row-begin';
+        else if (t.startsWith('end'))             tr.className = 'row-end';
+        else if (t === 'note')                    tr.className = 'row-note';
+        else if (t.startsWith('select_multiple')) tr.className = toggle ? 'row-selectm-a' : 'row-selectm-b';
+        else if (t.startsWith('select_one'))      tr.className = toggle ? 'row-select1-a' : 'row-select1-b';
+        else                                      tr.className = toggle ? 'row-odd' : 'row-even';
       } else {
         tr.className = toggle ? 'row-odd' : 'row-even';
       }
-
       headers.forEach(h => {
         const td = document.createElement('td');
         const val = row[h] || '';
         td.textContent = val;
-        if (NARROW_COLS.has(h.toLowerCase())) {
-          td.className = `col-${h.toLowerCase().replace(/_/g, '-')}`;
-        } else if (val.length > 60) {
-          td.title = val;
-        }
+        if (NARROW_COLS.has(h.toLowerCase())) td.className = `col-${h.toLowerCase().replace(/_/g,'-')}`;
+        else if (val.length > 60) td.title = val;
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -644,15 +589,11 @@
       const td = document.createElement('td');
       td.colSpan = headers.length;
       td.textContent = '— tidak ada data —';
-      td.style.cssText = 'text-align:center; padding: 16px; color: #94a3b8;';
+      td.style.cssText = 'text-align:center;padding:16px;color:#94a3b8';
       tr.appendChild(td);
       tbody.appendChild(tr);
     }
-
-    if (rowInfoEl) {
-      rowInfoEl.classList.add('hidden');
-      rowInfoEl.textContent = '';
-    }
+    if (rowInfoEl) { rowInfoEl.classList.add('hidden'); rowInfoEl.textContent = ''; }
   }
 
   function switchTab(tab) {
@@ -667,308 +608,22 @@
       : 'px-lg py-sm text-label-md font-label-md text-on-surface-variant border-b-2 border-transparent hover:text-on-surface transition-all';
   }
 
-  // ── Fungsi highlight ──────────────────────────────────────────────────────────
-  function highlightRowByName(qid) {
-    document.querySelectorAll('#surveyTbody tr').forEach(tr => {
-      const nameCell = tr.querySelector('td:nth-child(2)');
-      if (nameCell && nameCell.textContent.trim() === qid) {
-        tr.style.outline = '2px solid #1a56db';
-        tr.style.outlineOffset = '-1px';
-        tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => { tr.style.outline = ''; tr.style.outlineOffset = ''; }, 4000);
-      }
-    });
-  }
-
-  function highlightRowByListName(listName) {
-    document.querySelectorAll('#choicesTbody tr').forEach(tr => {
-      const cell = tr.querySelector('td');
-      if (cell && cell.textContent.trim() === listName) {
-        tr.style.outline = '2px solid #2e7d32';
-        tr.style.outlineOffset = '-1px';
-        tr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => { tr.style.outline = ''; tr.style.outlineOffset = ''; }, 4000);
-      }
-    });
-  }
-
-  // ── File selection ──────────────────────────────────────────────────────────
-  chooseFileBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    fileInput.click();
-  });
-  dropzone.addEventListener('click', () => fileInput.click());
-
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length) handleFileSelected(e.target.files[0]);
-  });
-
-  ['dragover', 'dragleave', 'drop'].forEach(evt => {
-    dropzone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
-  });
-  dropzone.addEventListener('dragover',  () => dropzone.classList.add('drag-over'));
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
-  dropzone.addEventListener('drop', (e) => {
-    dropzone.classList.remove('drag-over');
-    const files = e.dataTransfer.files;
-    if (files.length) handleFileSelected(files[0]);
-  });
-
-  function handleFileSelected(file) {
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['pdf', 'doc', 'docx'].includes(ext)) {
-      showError('Format file tidak didukung. Gunakan PDF, DOC, atau DOCX.');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      showError('Ukuran file melebihi 10MB. Harap kompres file terlebih dahulu.');
-      return;
-    }
-    selectedFile = file;
-    fileNameDisplay.textContent = `File dipilih: ${file.name}`;
-    fileNameDisplay.classList.add('text-primary', 'font-medium');
-    hideAll();
-    convertSection.classList.remove('hidden');
-  }
-
-  // ── Convert ─────────────────────────────────────────────────────────────────
-  convertBtn.addEventListener('click', startConversion);
-
-  async function startConversion() {
-    if (!selectedFile) return;
-
-    hideAll();
-    processingState.classList.remove('hidden');
-    setProgress(5, 'Mengunggah file...', 'Mengupload dokumen ke server...');
-
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
-    const startTime = Date.now();
-    let elapsedInterval = setInterval(() => {
-      const secs = Math.floor((Date.now() - startTime) / 1000);
-      const mins = Math.floor(secs / 60);
-      const s    = secs % 60;
-      const timeStr = mins > 0
-        ? `${mins}m ${s.toString().padStart(2, '0')}s`
-        : `${s}s`;
-      const base = progressLabel.dataset.base || progressLabel.textContent.replace(/ \| .+$/, '');
-      progressLabel.dataset.base = base;
-      progressLabel.textContent  = base + ` | ${timeStr}`;
-    }, 1000);
-
-    const aiSteps = [
-      { pct: 10, base: 'Membaca dokumen...',    step: 'Mengekstrak teks dari file...',                                             delay:   2000 },
-      { pct: 20, base: 'Mengirim ke AI...',      step: 'AI Claude mulai menganalisis kuesioner...',                                 delay:   6000 },
-      { pct: 30, base: 'AI memproses...',        step: 'Mengidentifikasi struktur pertanyaan & logika skip...',                    delay:  30000 },
-      { pct: 40, base: 'AI memproses...',        step: 'Membuat pertanyaan survey (bisa 5–20 menit untuk dokumen besar)...',       delay:  60000 },
-      { pct: 50, base: 'AI memproses...',        step: 'Menyusun daftar pilihan jawaban (choices)...',                             delay: 120000 },
-      { pct: 60, base: 'AI memproses...',        step: 'Menambahkan constraint & relevant expressions...',                         delay: 180000 },
-      { pct: 70, base: 'AI hampir selesai...',   step: 'Finalisasi struktur XLSForm...',                                           delay: 300000 },
-      { pct: 80, base: 'AI hampir selesai...',   step: 'Menunggu respons final dari server...',                                    delay: 480000 },
-      { pct: 88, base: 'Menunggu server...',     step: 'Proses masih berjalan, harap bersabar...',                                 delay: 900000 },
-    ];
-
-    const stepTimers = aiSteps.map(s =>
-      setTimeout(() => {
-        progressLabel.dataset.base = s.base;
-        progressLabel.textContent  = s.base;
-        progressStep.textContent   = s.step;
-        progressBar.style.width    = s.pct + '%';
-      }, s.delay)
-    );
-
-    try {
-      const resp = await fetch('/api/convert', { method: 'POST', body: formData });
-
-      clearInterval(elapsedInterval);
-      stepTimers.forEach(t => clearTimeout(t));
-
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({ error: 'Terjadi kesalahan tidak terduga.' }));
-        throw new Error(data.error || `Server error: ${resp.status}`);
-      }
-
-      progressLabel.dataset.base = 'Hampir selesai...';
-      setProgress(95, 'Hampir selesai...', 'Menyiapkan file untuk diunduh...');
-
-      const data = await resp.json();
-      downloadName = data.download_name || 'xlsform_output.xlsx';
-      currentDownloadUid = data.download_uid;
-      previewDataCache = null; // Reset cache karena data baru
-
-      const fileResp = await fetch(`/api/download/${data.download_uid}`);
-      if (!fileResp.ok) throw new Error('Gagal mengunduh file hasil konversi.');
-      downloadBlob = await fileResp.blob();
-
-      if (data.notes) renderConversionNotes(data.notes);
-
-      const totalSecs = Math.floor((Date.now() - startTime) / 1000);
-      const totalMins = Math.floor(totalSecs / 60);
-      const doneLabel = totalMins > 0
-        ? `Selesai dalam ${totalMins}m ${totalSecs % 60}s!`
-        : `Selesai dalam ${totalSecs}s!`;
-      setProgress(100, doneLabel, 'XLSForm berhasil dibuat!');
-
-      setTimeout(() => {
-        hideAll();
-        resultFileName.textContent = downloadName;
-        resultState.classList.remove('hidden');
-      }, 800);
-
-    } catch (err) {
-      clearInterval(elapsedInterval);
-      stepTimers.forEach(t => clearTimeout(t));
-
-      if (err.name === 'TypeError' && err.message.includes('fetch')) {
-        showError('Koneksi ke server terputus. Pastikan server masih berjalan dan coba lagi.');
-      } else {
-        showError(err.message || 'Konversi gagal. Silakan coba lagi.');
-      }
-    }
-  }
-
-  // ── Download ─────────────────────────────────────────────────────────────────
-  downloadBtn.addEventListener('click', () => {
-    if (!downloadBlob) return;
-    const url = URL.createObjectURL(downloadBlob);
-    const a   = document.createElement('a');
-    a.href     = url;
-    a.download = downloadName;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  // ── Reset ────────────────────────────────────────────────────────────────────
-  convertAnotherBtn.addEventListener('click', resetAll);
-  retryBtn.addEventListener('click', () => {
-    hideAll();
-    convertSection.classList.remove('hidden');
-  });
-
-  function setProgress(pct, label, step) {
-    progressBar.style.width  = pct + '%';
-    progressLabel.textContent = label;
-    progressStep.textContent  = step;
-  }
-
-  function hideAll() {
-    processingState.classList.add('hidden');
-    errorState.classList.add('hidden');
-    resultState.classList.add('hidden');
-    convertSection.classList.add('hidden');
-  }
-
-  function showError(msg) {
-    hideAll();
-    errorMessage.textContent = msg;
-    errorState.classList.remove('hidden');
-  }
-
-  // ── renderConversionNotes dengan tombol "Lihat" yang expandable ──────────
-  function renderConversionNotes(notes) {
-    const container  = document.getElementById('conversionNotes');
-    const fbSection  = document.getElementById('fallbackSection');
-    const fbList     = document.getElementById('fallbackList');
-    const phSection  = document.getElementById('placeholderSection');
-    const phList     = document.getElementById('placeholderList');
-
-    fbList.innerHTML = '';
-    phList.innerHTML = '';
-
-    const fallbacks    = notes.fallback_questions  || [];
-    const placeholders = notes.placeholder_choices || [];
-
-    if (fallbacks.length > 0) {
-      fallbacks.forEach(q => {
-        const li = document.createElement('li');
-        li.style.cssText = 'list-style:none;margin-bottom:6px';
-
-        // Row utama (info + tombol lihat)
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--color-surface-container,#f8f8f8);border-radius:8px;border:1px solid rgba(0,0,0,.06)';
-
-        const info = document.createElement('div');
-        info.innerHTML = `<span class="font-medium text-sm">${q.id}</span>
-          <span class="text-on-surface-variant text-xs block">${q.label || '(tanpa label)'}</span>
-          <span class="text-xs" style="color:#e65100">[${q.route_type} → ${q.resolved_type}]</span>`;
-
-        const btn = document.createElement('button');
-        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">expand_more</span> Lihat`;
-        btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(21,101,192,.25);border-radius:5px;padding:2px 8px;color:#1565c0;background:none;cursor:pointer;white-space:nowrap';
-
-        // Panel detail (awalnya hidden)
-        const detailPanel = document.createElement('div');
-        detailPanel.className = 'notes-detail-panel';
-        detailPanel.style.display = 'none';
-
-        btn.addEventListener('click', () => toggleNotesDetail(detailPanel, btn, 'survey', q.id, null));
-
-        row.appendChild(info);
-        row.appendChild(btn);
-        li.appendChild(row);
-        li.appendChild(detailPanel);
-        fbList.appendChild(li);
-      });
-      fbSection.classList.remove('hidden');
-    } else {
-      fbSection.classList.add('hidden');
-    }
-
-    if (placeholders.length > 0) {
-      placeholders.forEach(p => {
-        const li = document.createElement('li');
-        li.style.cssText = 'list-style:none;margin-bottom:6px';
-
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--color-surface-container,#f8f8f8);border-radius:8px;border:1px solid rgba(0,0,0,.06)';
-
-        const info = document.createElement('div');
-        info.innerHTML = `<code style="font-size:12px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px">${p.list_name}</code>
-          <span class="text-on-surface-variant text-xs block mt-1">${p.label || p.question_type}</span>`;
-
-        const btn = document.createElement('button');
-        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">expand_more</span> Lihat`;
-        btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(46,125,50,.25);border-radius:5px;padding:2px 8px;color:#2e7d32;background:none;cursor:pointer;white-space:nowrap';
-
-        const detailPanel = document.createElement('div');
-        detailPanel.className = 'notes-detail-panel choices-panel';
-        detailPanel.style.display = 'none';
-
-        btn.addEventListener('click', () => toggleNotesDetail(detailPanel, btn, 'choices', null, p.list_name));
-
-        row.appendChild(info);
-        row.appendChild(btn);
-        li.appendChild(row);
-        li.appendChild(detailPanel);
-        phList.appendChild(li);
-      });
-      phSection.classList.remove('hidden');
-    } else {
-      phSection.classList.add('hidden');
-    }
-
-    if (fallbacks.length > 0 || placeholders.length > 0) {
-      container.classList.remove('hidden');
-    } else {
-      container.classList.add('hidden');
-    }
-  }
-
-  // ── toggleNotesDetail ──────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════
+  // PANEL KECIL — Detail item notes (fetch filtered dari server)
+  // ════════════════════════════════════════════════════════════
   async function toggleNotesDetail(panel, btn, sheet, nameVal, listNameVal) {
-    // Toggle close
+    // Toggle tutup
     if (panel.style.display !== 'none') {
       panel.style.display = 'none';
       btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">expand_more</span> Lihat`;
       return;
     }
 
-    // Buka dan load
+    // Buka panel
     panel.style.display = 'block';
     btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">expand_less</span> Tutup`;
-    
-    // Kalau sudah ada isi (pernah dibuka), langsung tampil lagi
+
+    // Sudah pernah diload — tidak perlu fetch ulang
     if (panel.dataset.loaded === 'true') return;
 
     panel.innerHTML = `<div class="ndp-loading"><span class="material-symbols-outlined spin-slow" style="font-size:16px;vertical-align:middle">sync</span> Memuat data...</div>`;
@@ -993,34 +648,34 @@
         return;
       }
 
-      // Pilih kolom yang paling relevan untuk ditampilkan (tidak semua kolom)
+      // Kolom prioritas per sheet
       const priorityCols = sheet === 'survey'
-        ? ['type', 'name', 'label', 'hint', 'required', 'constraint', 'relevant', 'appearance']
-        : ['list_name', 'name', 'label'];
-      const headers = sheetData.headers.filter(h => priorityCols.includes(h.toLowerCase()));
-      // Kalau header prioritas tidak ada sama sekali, fallback ke semua header
-      const displayHeaders = headers.length > 0 ? headers : sheetData.headers;
+        ? ['type','name','label','hint','required','constraint','relevant','appearance']
+        : ['list_name','name','label'];
+      const displayHeaders = sheetData.headers.filter(h => priorityCols.includes(h.toLowerCase()));
+      const finalHeaders = displayHeaders.length > 0 ? displayHeaders : sheetData.headers;
 
-      const isChoices = sheet === 'choices';
       let tbodyHtml = '';
       sheetData.rows.forEach((row, i) => {
         const bg = i % 2 === 0 ? '#fff' : '#f9fafb';
-        const tds = displayHeaders.map(h => `<td style="background:${bg}">${row[h] || ''}</td>`).join('');
+        const tds = finalHeaders.map(h =>
+          `<td style="background:${bg}">${row[h] || ''}</td>`
+        ).join('');
         tbodyHtml += `<tr>${tds}</tr>`;
       });
 
-      const label = sheet === 'survey'
-        ? `Baris survey: <code style="background:rgba(255,255,255,.2);padding:1px 5px;border-radius:3px">${nameVal}</code>`
-        : `Choices untuk: <code style="background:rgba(255,255,255,.2);padding:1px 5px;border-radius:3px">${listNameVal}</code> (${sheetData.total_rows} opsi)`;
+      const headerLabel = sheet === 'survey'
+        ? `Baris survey: <code style="background:rgba(30,64,175,.12);padding:1px 6px;border-radius:4px;font-size:11px">${nameVal}</code>`
+        : `Choices: <code style="background:rgba(22,101,52,.12);padding:1px 6px;border-radius:4px;font-size:11px">${listNameVal}</code>`;
 
       panel.innerHTML = `
         <div class="ndp-header">
-          <span>${label}</span>
-          <span style="font-weight:normal;color:#94a3b8">${sheetData.total_rows} baris</span>
+          <span>${headerLabel}</span>
+          <span style="font-weight:normal;opacity:.7">${sheetData.total_rows} baris</span>
         </div>
         <div class="ndp-scroll">
           <table>
-            <thead><tr>${displayHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+            <thead><tr>${finalHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>
             <tbody>${tbodyHtml}</tbody>
           </table>
         </div>`;
@@ -1031,6 +686,246 @@
     }
   }
 
+  // ════════════════════════════════════════════════════════════
+  // RENDER CATATAN KONVERSI
+  // ════════════════════════════════════════════════════════════
+  function renderConversionNotes(notes) {
+    const container  = document.getElementById('conversionNotes');
+    const fbSection  = document.getElementById('fallbackSection');
+    const fbList     = document.getElementById('fallbackList');
+    const phSection  = document.getElementById('placeholderSection');
+    const phList     = document.getElementById('placeholderList');
+
+    fbList.innerHTML = '';
+    phList.innerHTML = '';
+
+    const fallbacks    = notes.fallback_questions  || [];
+    const placeholders = notes.placeholder_choices || [];
+
+    // ── Fallback questions ──
+    if (fallbacks.length > 0) {
+      fallbacks.forEach(q => {
+        const li = document.createElement('li');
+        li.style.cssText = 'list-style:none;margin-bottom:6px';
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--color-surface-container,#f8f8f8);border-radius:8px;border:1px solid rgba(0,0,0,.06)';
+
+        const info = document.createElement('div');
+        info.innerHTML = `
+          <span style="font-weight:600;font-size:13px">${q.id}</span>
+          <span style="color:#64748b;font-size:11px;display:block">${q.label || '(tanpa label)'}</span>
+          <span style="font-size:11px;color:#e65100">[${q.route_type} → ${q.resolved_type}]</span>`;
+
+        const btn = document.createElement('button');
+        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">expand_more</span> Lihat`;
+        btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(21,101,192,.25);border-radius:5px;padding:2px 8px;color:#1565c0;background:none;cursor:pointer;white-space:nowrap';
+
+        const detailPanel = document.createElement('div');
+        detailPanel.className = 'notes-detail-panel';
+        detailPanel.style.display = 'none';
+
+        // Tombol "Lihat" memanggil toggleNotesDetail — BUKAN showPreviewPanel
+        btn.addEventListener('click', () => toggleNotesDetail(detailPanel, btn, 'survey', q.id, null));
+
+        row.appendChild(info);
+        row.appendChild(btn);
+        li.appendChild(row);
+        li.appendChild(detailPanel);
+        fbList.appendChild(li);
+      });
+      fbSection.classList.remove('hidden');
+    } else {
+      fbSection.classList.add('hidden');
+    }
+
+    // ── Placeholder choices ──
+    if (placeholders.length > 0) {
+      placeholders.forEach(p => {
+        const li = document.createElement('li');
+        li.style.cssText = 'list-style:none;margin-bottom:6px';
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 10px;background:var(--color-surface-container,#f8f8f8);border-radius:8px;border:1px solid rgba(0,0,0,.06)';
+
+        const info = document.createElement('div');
+        info.innerHTML = `
+          <code style="font-size:12px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px">${p.list_name}</code>
+          <span style="color:#64748b;font-size:11px;display:block;margin-top:2px">${p.label || p.question_type}</span>`;
+
+        const btn = document.createElement('button');
+        btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px">expand_more</span> Lihat`;
+        btn.style.cssText = 'flex-shrink:0;font-size:11px;display:flex;align-items:center;gap:3px;border:1px solid rgba(46,125,50,.25);border-radius:5px;padding:2px 8px;color:#2e7d32;background:none;cursor:pointer;white-space:nowrap';
+
+        const detailPanel = document.createElement('div');
+        detailPanel.className = 'notes-detail-panel choices-panel';
+        detailPanel.style.display = 'none';
+
+        // Tombol "Lihat" memanggil toggleNotesDetail — BUKAN showPreviewPanel
+        btn.addEventListener('click', () => toggleNotesDetail(detailPanel, btn, 'choices', null, p.list_name));
+
+        row.appendChild(info);
+        row.appendChild(btn);
+        li.appendChild(row);
+        li.appendChild(detailPanel);
+        phList.appendChild(li);
+      });
+      phSection.classList.remove('hidden');
+    } else {
+      phSection.classList.add('hidden');
+    }
+
+    if (fallbacks.length > 0 || placeholders.length > 0) {
+      container.classList.remove('hidden');
+    } else {
+      container.classList.add('hidden');
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // FILE SELECTION
+  // ════════════════════════════════════════════════════════════
+  chooseFileBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFileSelected(e.target.files[0]); });
+  ['dragover','dragleave','drop'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
+  });
+  dropzone.addEventListener('dragover',  () => dropzone.classList.add('drag-over'));
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', (e) => {
+    dropzone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) handleFileSelected(e.dataTransfer.files[0]);
+  });
+
+  function handleFileSelected(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf','doc','docx'].includes(ext)) { showError('Format file tidak didukung. Gunakan PDF, DOC, atau DOCX.'); return; }
+    if (file.size > 10 * 1024 * 1024) { showError('Ukuran file melebihi 10MB. Harap kompres file terlebih dahulu.'); return; }
+    selectedFile = file;
+    fileNameDisplay.textContent = `File dipilih: ${file.name}`;
+    fileNameDisplay.classList.add('text-primary','font-medium');
+    hideAll();
+    convertSection.classList.remove('hidden');
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // CONVERT
+  // ════════════════════════════════════════════════════════════
+  convertBtn.addEventListener('click', startConversion);
+
+  async function startConversion() {
+    if (!selectedFile) return;
+    hideAll();
+    processingState.classList.remove('hidden');
+    setProgress(5, 'Mengunggah file...', 'Mengupload dokumen ke server...');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    const startTime = Date.now();
+    let elapsedInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - startTime) / 1000);
+      const mins = Math.floor(secs / 60);
+      const s    = secs % 60;
+      const timeStr = mins > 0 ? `${mins}m ${s.toString().padStart(2,'0')}s` : `${s}s`;
+      const base = progressLabel.dataset.base || progressLabel.textContent.replace(/ \| .+$/, '');
+      progressLabel.dataset.base = base;
+      progressLabel.textContent  = base + ` | ${timeStr}`;
+    }, 1000);
+
+    const aiSteps = [
+      { pct: 10, base: 'Membaca dokumen...',    step: 'Mengekstrak teks dari file...',                                          delay:   2000 },
+      { pct: 20, base: 'Mengirim ke AI...',      step: 'AI Claude mulai menganalisis kuesioner...',                              delay:   6000 },
+      { pct: 30, base: 'AI memproses...',        step: 'Mengidentifikasi struktur pertanyaan & logika skip...',                 delay:  30000 },
+      { pct: 40, base: 'AI memproses...',        step: 'Membuat pertanyaan survey (bisa 5–20 menit untuk dokumen besar)...',    delay:  60000 },
+      { pct: 50, base: 'AI memproses...',        step: 'Menyusun daftar pilihan jawaban (choices)...',                          delay: 120000 },
+      { pct: 60, base: 'AI memproses...',        step: 'Menambahkan constraint & relevant expressions...',                      delay: 180000 },
+      { pct: 70, base: 'AI hampir selesai...',   step: 'Finalisasi struktur XLSForm...',                                        delay: 300000 },
+      { pct: 80, base: 'AI hampir selesai...',   step: 'Menunggu respons final dari server...',                                 delay: 480000 },
+      { pct: 88, base: 'Menunggu server...',     step: 'Proses masih berjalan, harap bersabar...',                              delay: 900000 },
+    ];
+    const stepTimers = aiSteps.map(s =>
+      setTimeout(() => {
+        progressLabel.dataset.base = s.base;
+        progressLabel.textContent  = s.base;
+        progressStep.textContent   = s.step;
+        progressBar.style.width    = s.pct + '%';
+      }, s.delay)
+    );
+
+    try {
+      const resp = await fetch('/api/convert', { method: 'POST', body: formData });
+      clearInterval(elapsedInterval);
+      stepTimers.forEach(t => clearTimeout(t));
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({ error: 'Terjadi kesalahan tidak terduga.' }));
+        throw new Error(data.error || `Server error: ${resp.status}`);
+      }
+
+      setProgress(95, 'Hampir selesai...', 'Menyiapkan file untuk diunduh...');
+      const data = await resp.json();
+      downloadName       = data.download_name || 'xlsform_output.xlsx';
+      currentDownloadUid = data.download_uid;
+      previewDataCache   = null;
+
+      const fileResp = await fetch(`/api/download/${data.download_uid}`);
+      if (!fileResp.ok) throw new Error('Gagal mengunduh file hasil konversi.');
+      downloadBlob = await fileResp.blob();
+
+      if (data.notes) renderConversionNotes(data.notes);
+
+      const totalSecs = Math.floor((Date.now() - startTime) / 1000);
+      const totalMins = Math.floor(totalSecs / 60);
+      const doneLabel = totalMins > 0 ? `Selesai dalam ${totalMins}m ${totalSecs % 60}s!` : `Selesai dalam ${totalSecs}s!`;
+      setProgress(100, doneLabel, 'XLSForm berhasil dibuat!');
+      setTimeout(() => { hideAll(); resultFileName.textContent = downloadName; resultState.classList.remove('hidden'); }, 800);
+
+    } catch (err) {
+      clearInterval(elapsedInterval);
+      stepTimers.forEach(t => clearTimeout(t));
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        showError('Koneksi ke server terputus. Pastikan server masih berjalan dan coba lagi.');
+      } else {
+        showError(err.message || 'Konversi gagal. Silakan coba lagi.');
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // DOWNLOAD & RESET
+  // ════════════════════════════════════════════════════════════
+  downloadBtn.addEventListener('click', () => {
+    if (!downloadBlob) return;
+    const url = URL.createObjectURL(downloadBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = downloadName; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  convertAnotherBtn.addEventListener('click', resetAll);
+  retryBtn.addEventListener('click', () => { hideAll(); convertSection.classList.remove('hidden'); });
+
+  function setProgress(pct, label, step) {
+    progressBar.style.width   = pct + '%';
+    progressLabel.textContent = label;
+    progressStep.textContent  = step;
+  }
+
+  function hideAll() {
+    processingState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    resultState.classList.add('hidden');
+    convertSection.classList.add('hidden');
+  }
+
+  function showError(msg) {
+    hideAll();
+    errorMessage.textContent = msg;
+    errorState.classList.remove('hidden');
+  }
+
   function resetAll() {
     selectedFile       = null;
     downloadBlob       = null;
@@ -1039,7 +934,7 @@
     previewDataCache   = null;
     fileInput.value    = '';
     fileNameDisplay.textContent = 'Drag & drop file kuesioner di sini, atau';
-    fileNameDisplay.classList.remove('text-primary', 'font-medium');
+    fileNameDisplay.classList.remove('text-primary','font-medium');
     document.getElementById('conversionNotes').classList.add('hidden');
     document.getElementById('fallbackSection').classList.add('hidden');
     document.getElementById('placeholderSection').classList.add('hidden');
