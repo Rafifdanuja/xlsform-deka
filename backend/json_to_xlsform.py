@@ -82,7 +82,6 @@ def _safe_name(raw_id: str) -> str:
 
 def _clean_label(text: str) -> str:
     """Hapus instruksi DP dari label — sisakan hanya pertanyaan untuk responden."""
-    # Hapus baris yang dimulai dengan marker instruksi
     lines = text.splitlines()
     clean = []
     for ln in lines:
@@ -106,10 +105,8 @@ def _safe_label(label: str, fallback_id: str, row_type: str = "") -> str:
     """Pastikan label tidak pernah kosong — KoboToolbox wajibkan label/hint untuk semua elemen."""
     if label and label.strip():
         return label.strip()
-    # Tipe struktural boleh kosong
     if row_type in ("end_group", "end_repeat", "start", "end", "deviceid"):
         return ""
-    # Fallback: gunakan ID sebagai label placeholder
     return f"[{fallback_id}]"
 
 
@@ -154,7 +151,6 @@ def _llm_resolve(ambiguous: list[dict], skip_logic_qs: list[dict],
             "question": q["question"][:100],
         })
 
-    # Berikan konteks ID yang tersedia di survey
     id_context = ", ".join(all_q_ids[:80])
 
     prompt = f"""Kamu adalah ahli XLSForm KoboToolbox ODK. Proses tugas berikut.
@@ -225,25 +221,18 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
     meta: dict            = parsed_json.get("_meta", {})
     logger.info(f"Memproses {len(questions)} baris dari {meta.get('source','?')}")
 
-    # Metadata konversi untuk dilaporkan ke frontend
     conversion_notes: dict = {
-        "fallback_questions": [],   # AMBIGUOUS — perlu review (masuk LLM atau benar-benar kosong)
-        "fallback_inferred":  [],   # INFERABLE  — aman, resolved deterministik dari teks/choices
+        "fallback_questions": [],   # AMBIGUOUS — perlu review
+        "fallback_inferred":  [],   # INFERABLE  — aman, resolved deterministik
         "placeholder_choices": [],  # list choices hilang → placeholder
     }
 
-    # Kumpulkan semua ID yang valid (untuk konteks LLM)
     all_q_ids = [
         _safe_name(q["id"]) for q in questions
         if q.get("id") and not q.get("is_header")
         and q.get("route_type","") not in ("begin_group","end_group","end_repeat","begin_repeat")
     ]
 
-    # FIX 2a: Pisahkan 3 kategori
-    #   CLEAR     → route ada & dikenali di _ROUTE_TO_TYPE → langsung assign
-    #   INFERABLE → route kosong TAPI ada choices ATAU regex match → assign deterministik
-    #   AMBIGUOUS → route kosong, tidak ada choices, regex miss → kirim ke LLM
-    # FIX 2b: kota (route = "select_one list_kota") bukan fallback, exclude dari semua warning
     _KOTA_TYPES = {"select_one list_kota", "select_multiple list_kota"}
     _STRUCTURAL  = {"begin_group","end_group","begin_repeat","end_repeat",
                     "kota_choices_data","info"}
@@ -255,23 +244,15 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
         rt          = q.get("route_type", "").strip()
         has_choices = bool(q.get("choices"))
 
-        # Skip structural & kota
         if rt in _STRUCTURAL or rt in _KOTA_TYPES:
             continue
 
-        # CLEAR
         if rt in _ROUTE_TO_TYPE:
-            pass  # tidak perlu LLM
-
-        # INFERABLE: route kosong tapi _detect_type_from_text atau choices berhasil
+            pass
         elif rt == "" and (has_choices or _detect_type_from_text(q.get("question",""), has_choices)):
-            pass  # sudah bisa di-resolve di _resolve_type tanpa LLM
-
-        # AMBIGUOUS: route kosong, tidak ada choices, tidak ada teks signal → LLM
+            pass
         elif rt == "" and not has_choices and not _detect_type_from_text(q.get("question",""), False):
             ambiguous.append(q)
-
-        # Route tidak dikenal sama sekali (bukan kosong, bukan di map) → LLM
         elif rt not in _ROUTE_TO_TYPE and rt not in ("",):
             ambiguous.append(q)
 
@@ -289,7 +270,7 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
     used_names:   dict[str, int] = {}
     current_section = None
 
-    # ── Pre-inject list_kota dari metadata yang disisipkan parser ─────────────
+    # Pre-inject list_kota
     for q in questions:
         if q.get("route_type") == "kota_choices_data" and q.get("choices"):
             for ch in q["choices"]:
@@ -299,7 +280,7 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
                     cname = re.sub(r'[^a-z0-9]', '_', label.lower())
                     cname = re.sub(r'_+', '_', cname).strip('_') or f"kota_{code}"
                     choices_rows.append({"list_name": "list_kota", "name": cname, "label": label})
-            break  # hanya satu entry kota_choices_data
+            break
 
     # Metadata
     for mt in ("start", "end", "deviceid"):
@@ -344,7 +325,6 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
             continue
 
         if is_header:
-            # Skip kota_choices_data — sudah diproses sebelum loop
             if route_type == "kota_choices_data":
                 continue
             if q_id:
@@ -352,8 +332,7 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
                 nn = _dedup_name(nn, used_names)
                 note_label = _clean_label(raw_label)
                 note_label = _safe_label(note_label, q_id, "note")
-                survey_rows.append({"type": "note", "name": nn,
-                                    "label": note_label})
+                survey_rows.append({"type": "note", "name": nn, "label": note_label})
             continue
 
         if not q_id:
@@ -365,8 +344,8 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
 
         xlstype = _resolve_type(q, llm_results)
 
-        # FIX 2a: Kategorikan fallback — AMBIGUOUS (perlu review) vs INFERABLE (aman)
-        # FIX 2b: Kota excluded dari semua warning
+        # Kategorikan fallback — gunakan `name` (sudah _safe_name + dedup)
+        # agar match dengan kolom `name` di sheet survey xlsx
         rt_original = q.get("route_type", "").strip()
         _is_kota    = rt_original in _KOTA_TYPES or lname == "list_kota"
         _is_struct  = rt_original in _STRUCTURAL
@@ -377,21 +356,21 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
             elif rt_original == "" and (bool(choices) or _detect_type_from_text(q.get("question",""), bool(choices))):
                 # INFERABLE: aman, dicatat terpisah
                 conversion_notes["fallback_inferred"].append({
-                    "id": q_id,
+                    "id": name,              # ← name, bukan q_id
                     "label": raw_label[:80],
                     "route_type": "(kosong)",
                     "resolved_type": xlstype,
                 })
             else:
-                # AMBIGUOUS: perlu review
+                # AMBIGUOUS: perlu review — gunakan `name` agar match kolom name di xlsx
                 conversion_notes["fallback_questions"].append({
-                    "id": q_id,
+                    "id": name,              # ← FIX: name (snake_case, sudah dedup), bukan q_id
                     "label": raw_label[:80],
                     "route_type": rt_original or "(kosong)",
                     "resolved_type": xlstype,
                 })
 
-        # Handle tipe lengkap dengan list_name (mis. "select_one list_kota")
+        # Handle tipe lengkap dengan list_name
         full_type_override = None
         if " " in xlstype and xlstype.split()[0] in ("select_one", "select_multiple"):
             parts = xlstype.split(None, 1)
@@ -420,7 +399,7 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
                 constraint = " and ".join(f". != '{c}'" for c in stop_codes)
                 constraint_msg = _STOP_MESSAGE
 
-        # Required: prioritas dari _required (blok info), lalu otomatis
+        # Required
         explicit_required = q.get("_required", "")
         if explicit_required:
             required = explicit_required
@@ -450,19 +429,18 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
         if xlstype in ("select_one","select_multiple") and choices:
             seen_names_local: dict[str, int] = {}
             for ch in choices:
-                code  = ch.get("code","").strip()
+                code     = ch.get("code","").strip()
                 label_ch = ch.get("label","").strip()
                 if not code and not label_ch:
                     continue
                 if re.search(r'[A-Za-z]\d+[a-z]?\s*\(', code):
-                    continue  # instruksi DP
+                    continue
                 if re.match(r'^ROTASIKAN|^\[DP', code, re.I) or \
                    re.match(r'^ROTASIKAN|^\[DP', label_ch, re.I):
                     continue
                 raw_cn = re.sub(r'[^a-z0-9]','_', code.lower()) if code \
                          else re.sub(r'[^a-z0-9]','_', label_ch.lower()[:25])
                 raw_cn = re.sub(r'_+','_', raw_cn).strip('_') or 'opt'
-                # Deduplikasi lokal dalam list ini
                 if raw_cn in seen_names_local:
                     seen_names_local[raw_cn] += 1
                     cn = f"{raw_cn}_{seen_names_local[raw_cn]}"
@@ -492,7 +470,6 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
                 choices_rows.append({"list_name": ref, "name": "placeholder",
                                      "label": f"[TODO: isi pilihan {ref}]"})
                 defined.add(ref)
-                # Cari nama pertanyaan yang mereferensikan list ini
                 q_label = next(
                     (r.get("label", "") for r in survey_rows if r.get("type", "") == t),
                     ""
@@ -512,7 +489,6 @@ def convert_json_to_xlsform(parsed_json: dict) -> tuple[bytes, dict]:
     else:
         logger.info("[VALIDATE] ✓ Tidak ada duplicate name")
 
-    # Settings
     src  = meta.get("source","kuesioner")
     settings = {
         "form_title":       src.replace(".docx","").replace("_"," ").replace("-"," ").title(),
@@ -549,14 +525,13 @@ def _resolve_type(q: dict, llm_results: dict) -> str:
     if q_id in llm_results and "type" in llm_results[q_id]:
         return llm_results[q_id]["type"]
 
-    # Handle tipe lengkap dengan list_name (mis. "select_one list_kota")
     if rt.startswith("select_one ") or rt.startswith("select_multiple "):
-        return rt  # dikembalikan penuh — akan ditangani di build loop
+        return rt
 
     if rt in _ROUTE_TO_TYPE:
         mapped = _ROUTE_TO_TYPE[rt]
         if mapped in ("select_one","select_multiple") and not has_choices:
-            return mapped  # list akan diisi atau placeholder
+            return mapped
         return mapped
 
     detected = _detect_type_from_text(question, has_choices)
