@@ -228,6 +228,61 @@ def preview_xlsform(uid: str):
         logger.error(f"Preview xlsform gagal: {e}", exc_info=True)
         return jsonify({"error": f"Gagal membaca hasil konversi: {str(e)[:200]}"}), 500
 
+@app.route("/api/preview-xlsform/<uid>/search")
+def preview_xlsform_search(uid: str):
+    """
+    Cari baris spesifik di hasil konversi berdasarkan name (survey) atau list_name (choices).
+    Query params:
+      - name      : filter sheet survey by kolom 'name'
+      - list_name : filter sheet choices by kolom 'list_name'
+    Return semua baris yang match (tanpa limit).
+    """
+    filter_name      = request.args.get("name", "").strip()
+    filter_list_name = request.args.get("list_name", "").strip()
+
+    if not filter_name and not filter_list_name:
+        return jsonify({"error": "Parameter 'name' atau 'list_name' wajib diisi"}), 400
+
+    matches = list(UPLOAD_FOLDER.glob(f"{uid}_*"))
+    if not matches:
+        return jsonify({"error": "File tidak ditemukan atau sudah kadaluarsa"}), 404
+
+    out_path = matches[0]
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(str(out_path), read_only=True)
+
+        def _filter_sheet(ws, filter_col, filter_val):
+            headers = []
+            rows = []
+            col_idx = None
+            for ri, row in enumerate(ws.iter_rows(values_only=True)):
+                vals = [str(v) if v is not None else "" for v in row]
+                if ri == 0:
+                    headers = vals
+                    # Cari index kolom yang jadi filter
+                    for ci, h in enumerate(headers):
+                        if h.strip().lower() == filter_col.lower():
+                            col_idx = ci
+                            break
+                else:
+                    if col_idx is not None and vals[col_idx].strip() == filter_val:
+                        rows.append(dict(zip(headers, vals)))
+            return {"headers": headers, "rows": rows, "total_rows": len(rows)}
+
+        result = {}
+        if filter_name and "survey" in wb.sheetnames:
+            result["survey"] = _filter_sheet(wb["survey"], "name", filter_name)
+        if filter_list_name and "choices" in wb.sheetnames:
+            result["choices"] = _filter_sheet(wb["choices"], "list_name", filter_list_name)
+
+        wb.close()
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Search preview gagal: {e}", exc_info=True)
+        return jsonify({"error": f"Gagal mencari data: {str(e)[:200]}"}), 500
+
 @app.route("/api/download/<uid>")
 def download_file(uid: str):
     """Endpoint untuk mengunduh file hasil konversi berdasarkan UID."""
